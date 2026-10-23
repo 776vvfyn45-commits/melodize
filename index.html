@@ -191,6 +191,7 @@
       <button class="btn small ghost" id="chatBack">← Back to studio</button>
       <div class="chat-title">🤖 Melodize Advisor<small id="chatSub">Talk, type, or sing — I'll help you pick instruments and build beats.</small></div>
       <label class="chk"><input type="checkbox" id="chatSpeak"> 🔊 Speak replies</label>
+      <button class="btn small" id="chatVoice" title="Hands-free conversation: talk, sing, talk again">🗣 Voice chat</button>
       <button class="btn small" id="chatCfg" title="Connect a real AI (optional)">⚙ AI: built-in</button>
     </div>
     <div class="tip" id="aiCfg" style="display:none;margin-top:10px">
@@ -1143,14 +1144,21 @@ function setChips(list) {
     host.appendChild(b);
   });
 }
-function speakText(t) {
+function speakText(t, done) {
+  let fired = false, timer = 0;
+  const fin = () => { if (fired) return; fired = true; chat.speaking = false; clearTimeout(timer); if (done) done(); };
+  let clean = String(t).replace(/[^\x20-\x7E -ɏ]/g, '').replace(/\s+/g, ' ').trim();
+  if (clean.length > 320) { const cut = clean.slice(0, 320), k = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! ')); clean = k > 80 ? cut.slice(0, k + 1) : cut; }
+  timer = setTimeout(fin, Math.max(2500, clean.length * 95));   // safety net if the browser never fires onend
   try {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) { fin(); return; }
     window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(String(t).replace(/[^\x20-\x7E -ɏ]/g, '').replace(/\s+/g, ' ').trim());
-    u.rate = 1.02; window.speechSynthesis.speak(u);
-  } catch (e) {}
+    chat.speaking = true;
+    const u = new SpeechSynthesisUtterance(clean);
+    u.rate = 1.02; u.onend = fin; u.onerror = fin; window.speechSynthesis.speak(u);
+  } catch (e) { fin(); }
 }
+function afterBot() { if (chat.voiceOn && !chat.recording && !chat.singing && !chat.speaking) setTimeout(startListen, 250); }
 function say(text, opts) {
   opts = opts || {};
   if (chat.lead) { text = chat.lead + ' ' + text; chat.lead = ''; }
@@ -1160,7 +1168,9 @@ function say(text, opts) {
   chatMsgs.appendChild(el);
   setChips(opts.chips || []);
   scrollChat();
-  if (chat.speak && !opts.silent) speakText(opts.speech || text);
+  const after = () => { if (opts.then) { try { opts.then(); } catch (e) { console.error(e); } } else afterBot(); };
+  if (chat.speak && !opts.silent) speakText(opts.speech || text, after);
+  else if (!opts.silent) setTimeout(after, 0);
   return el;
 }
 function userMsg(text) {
@@ -1227,6 +1237,7 @@ function recommendReply(intro) {
 }
 
 async function applyInstrument(key, octave) {
+  chat.wish.instrument = undefined;
   const def = ALL_INST[key];
   S.instrument = key; renderInstGrids();
   if (!chat.take) {
@@ -1253,6 +1264,7 @@ function inferStyle() {
   return { energetic:'house', calm:'lofi', sad:'lofi', dark:'trap', epic:'bigroom', happy:'pop' }[chat.mood] || null;
 }
 async function makeBeat(styleId, opts) {
+  chat.wish.beat = undefined; chat.wish.style = undefined;
   opts = opts || {};
   styleId = styleId || inferStyle();
   if (!styleId) {
@@ -1302,6 +1314,8 @@ function clearAllTracks() {
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const ALL_STYLES = ['house','techno','trap','boombap','dnb','lofi','rock','disco','reggaeton','afro','pop','bigroom'];
 const BASS_KEYS = ['bass','sub','wobble','acid'];
+const normTxt = t => ' ' + String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+chat.wish = {}; chat.voiceOn = false; chat.speaking = false; chat.singing = false;
 chat.pending = null; chat.last = null; chat.lead = ''; chat.misses = 0; chat.prevMiss = 0; chat.history = [];
 const ACKS = ['Sure thing!', 'Absolutely!', 'Yes we can!', 'On it!', 'Love that idea.', 'Great call.'];
 
@@ -1327,6 +1341,32 @@ async function respond(text) {
   const r = DSP.parseChat(text);
   chat.prevMiss = chat.misses; chat.misses = 0;
   const want = r.instrument || r.wantBeat || r.buildSong || r.style;
+  const nt = normTxt(text);
+  if (/(turn|switch|shut) off (the )?(voice|talking|listening)|stop (the )?(voice chat|listening)|end (the )?voice chat|(voice|hands free) mode off/.test(nt)) { setVoice(false); say('Voice chat off — tap 🗣 Voice chat to turn it back on.', { silent: true }); return; }
+  r.asSaid = /(as|like|what) i (said|told|asked|mentioned|wanted|requested)|as (said|requested|before|earlier|discussed)|same as (before|earlier|i said)|the way i (said|told|asked)|like (we|i) (said|discussed)/.test(nt);
+  r.makeThis = /(make|do|build|create|finish) (this|it|that)( for me| please| now| happen| work| real| then)? $/.test(nt) && !r.instrument && !r.wantBeat && !r.buildSong && !r.mood && !r.genre;
+  if (r.instrument) chat.wish.instrument = r.instrument;
+  if (r.style) chat.wish.style = r.style;
+  if (r.wantBeat) chat.wish.beat = true;
+  const hasWish = () => !!(chat.wish.instrument || chat.wish.beat || chat.wish.style);
+  const wishText = () => [chat.wish.instrument && ('on ' + ALL_INST[chat.wish.instrument].label), (chat.wish.beat || chat.wish.style) && ('with a ' + (chat.wish.style ? STYLE_LABEL[chat.wish.style].toLowerCase() + ' ' : '') + 'beat')].filter(Boolean).join(' ');
+  async function applyWish() {
+    const w = chat.wish; chat.wish = {};
+    chat.lead = pick(['Got it — doing it the way you asked.', 'Right, as you said!']);
+    if (w.instrument) { await applyInstrument(w.instrument); chat.last = { action: 'instrument', key: w.instrument }; }
+    if (w.beat || w.style) { await makeBeat(w.style || null); chat.last = { action: 'beat', style: w.style }; }
+  }
+  if ((r.asSaid || r.makeThis) && !r.sing && !r.beatbox) {
+    if (chat.pendingInstrument && !chat.wish.instrument) chat.wish.instrument = chat.pendingInstrument;
+    if (hasWish() && chat.take) { await applyWish(); return; }
+    if (hasWish() && !chat.take) {
+      chat.afterSing = { instrument: chat.wish.instrument, beat: !!(chat.wish.beat || chat.wish.style), style: chat.wish.style };
+      say('Okay — I have it: your tune ' + wishText() + '. Go ahead and sing, I’m listening.', { then: () => chatSing('melody') }); return;
+    }
+    if (chat.take) { const top = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre }).slice(0, 3);
+      say("Happy to — make it what? Pick an instrument, or tell me the style (like “on guitar with a trap beat”).", { chips: top.map(x => ({ label: 'On ' + ALL_INST[x.key].label, say: 'put it on ' + ALL_INST[x.key].label.toLowerCase() })).concat([{ label: 'Build a full song', say: 'build me a full song' }]) }); return; }
+    say("Remind me what you'd like — for example “a guitar tune with a trap beat”. Then sing, and I'll build it from your voice.", { chips: suggestNext() }); return;
+  }
   chat.history.push({ role: 'user', content: text }); if (chat.history.length > 14) chat.history.shift();
   // answer a pending "want me to…?" question
   if (chat.pending && !want) {
@@ -1418,9 +1458,12 @@ async function respondCore(text, r) {
   if (r.bpm) applyBpm(r.bpm); else if (r.tempoDelta) applyBpm(S.bpm + r.tempoDelta);
 
   if (r.sing || r.beatbox) {
-    chat.afterSing = { instrument: r.instrument, beat: r.wantBeat, style: r.style };
-    say(r.beatbox ? "Okay — beatbox into the mic! Tap ■ Stop when you're done." : "I'm listening — sing or hum your tune, then tap ■ Stop." + (r.instrument ? ' I\'ll play it on the ' + ALL_INST[r.instrument].label.toLowerCase() + '.' : ''));
-    chatSing(r.beatbox ? 'beatbox' : 'melody');
+    const w = chat.wish; chat.wish = {};
+    chat.afterSing = { instrument: r.instrument || w.instrument, beat: r.wantBeat || w.beat, style: r.style || w.style };
+    const inst = chat.afterSing.instrument;
+    say(r.beatbox ? "Okay — beatbox into the mic!" + (chat.voiceOn ? " I'll stop when you pause." : " Tap ■ Stop when you're done.")
+      : "I'm listening — sing or hum your tune" + (chat.voiceOn ? "; I'll stop when you pause." : ", then tap ■ Stop.") + (inst ? " I'll play it on the " + ALL_INST[inst].label.toLowerCase() + '.' : ''),
+      { then: () => chatSing(r.beatbox ? 'beatbox' : 'melody') });
     return;
   }
   if (r.buildSong) { await buildSong(); return; }
@@ -1544,19 +1587,30 @@ refreshAiBtn();
 async function chatSing(kind) {
   if (chat.recording) { finishChatRecording(); return; }
   if (mediaRecorder && mediaRecorder.state === 'recording') { say('The studio recorder is running — stop it first.'); return; }
+  if (chat.singing) return;
+  chat.singing = true; stopListen();
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
   await Tone.start();
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
-  } catch (e) { say('I can\'t reach the microphone — please allow it for this site and try again.'); return; }
+  } catch (e) { chat.singing = false; chat.voiceOn && setVoice(false); say('I can\'t reach the microphone — please allow it for this site and try again.'); return; }
   const bubble = document.createElement('div'); bubble.className = 'msg user';
-  const lbl = document.createElement('div'); lbl.className = 'txt'; lbl.textContent = (kind === 'beatbox' ? '🥁 Beatboxing… ' : '🎤 Listening… ') + 'tap ■ Stop when done'; bubble.appendChild(lbl);
+  const lbl = document.createElement('div'); lbl.className = 'txt'; lbl.textContent = (kind === 'beatbox' ? '🥁 Beatboxing… ' : '🎤 Listening… ') + (chat.voiceOn ? "I'll stop when you pause" : 'tap ■ Stop when done'); bubble.appendChild(lbl);
   const cv = document.createElement('canvas'); cv.className = 'chatmeter'; cv.width = 240; cv.height = 24; bubble.appendChild(cv);
   chatMsgs.appendChild(bubble); scrollChat(); setChips([{ label: '■ Stop', fn: finishChatRecording }]);
   const ctx = Tone.context.rawContext, src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(); an.fftSize = 1024; src.connect(an);
-  const arr = new Uint8Array(an.frequencyBinCount); const c2 = cv.getContext('2d'); let raf = 0;
+  const arr = new Uint8Array(an.frequencyBinCount); const c2 = cv.getContext('2d'); let raf = 0, alive = true, heard = false, lastLoud = 0;
+  const t0 = performance.now(), hands = chat.voiceOn, quietMs = kind === 'beatbox' ? 2400 : 1900;
   (function loop() {
+    if (!alive) return;
     an.getByteTimeDomainData(arr); let sum = 0; for (let i = 0; i < arr.length; i++) { const v = (arr[i] - 128) / 128; sum += v * v; }
+    const now = performance.now(), level = Math.sqrt(sum / arr.length);
+    if (level > 0.02) { heard = true; lastLoud = now; }
+    if (hands && chat.recording) {      // hands-free: stop after you've sung and then paused (or nothing heard for 9s)
+      if (heard && now - lastLoud > quietMs && now - t0 > 1200) { finishChatRecording(); return; }
+      if (!heard && now - t0 > 9000) { finishChatRecording(); return; }
+    }
     c2.fillStyle = 'rgba(0,0,0,.3)'; c2.fillRect(0, 0, 240, 24); c2.fillStyle = '#fff'; c2.fillRect(0, 6, Math.min(240, Math.sqrt(sum / arr.length) * 3 * 240), 12);
     raf = requestAnimationFrame(loop);
   })();
@@ -1566,19 +1620,20 @@ async function chatSing(kind) {
   mr.onstop = () => processChatRecording(kind, chunks, bubble);
   mr.start();
   const timer = setTimeout(() => { if (chat.recording) finishChatRecording(); }, 45000);
-  chat.recording = { kind, stream, mr, raf, timer, bubble };
+  chat.recording = { kind, stream, mr, raf, timer, bubble, kill: () => { alive = false; } };
   const sb = $('#chatSing'); sb.classList.add('live'); sb.textContent = '■ Stop';
 }
 function finishChatRecording() {
   const rc = chat.recording; if (!rc) return;
   chat.recording = null;
-  clearTimeout(rc.timer); cancelAnimationFrame(rc.raf);
+  clearTimeout(rc.timer); cancelAnimationFrame(rc.raf); if (rc.kill) rc.kill();
   try { if (rc.mr.state !== 'inactive') rc.mr.stop(); } catch (e) {}
   rc.stream.getTracks().forEach(t => t.stop());
   const sb = $('#chatSing'); sb.classList.remove('live'); sb.textContent = '🎤 Sing';
   setChips([]);
 }
 async function processChatRecording(kind, chunks, bubble) {
+  chat.singing = false;
   try {
     const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : 'audio/webm' });
     const url = URL.createObjectURL(blob);
@@ -1624,10 +1679,8 @@ async function processChatRecording(kind, chunks, bubble) {
 /* ----- talk (voice -> text) ----- */
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 let speechRec = null, listening = false;
-$('#chatTalk').addEventListener('click', () => {
-  if (!SpeechRec) { say("Voice typing isn't supported in this browser — try Chrome, Edge or Safari, or just type. You can still tap 🎤 to sing to me!"); return; }
-  if (listening) { try { speechRec.stop(); } catch (e) {} return; }
-  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+function startListen() {
+  if (!SpeechRec || listening || chat.recording || chat.singing || chat.speaking) return;
   speechRec = new SpeechRec();
   const nl = navigator.language || 'en-US';
   speechRec.lang = /^en/i.test(nl) ? nl : 'en-US';
@@ -1645,13 +1698,35 @@ $('#chatTalk').addEventListener('click', () => {
     listening = false; $('#chatTalk').classList.remove('live');
     const t = ($('#chatText').value || '').trim();
     if (t) { $('#chatText').value = ''; handleText(t, true); }
+    else if (chat.voiceOn) setTimeout(startListen, 400);      // keep the conversation open
   };
   speechRec.onerror = e => {
     listening = false; $('#chatTalk').classList.remove('live');
-    say(e && e.error === 'not-allowed' ? 'Microphone or speech permission was blocked — please allow it and try again.' : "I didn't catch that — tap 🎙 and try again.");
+    const code = e && e.error;
+    if (code === 'not-allowed' || code === 'service-not-allowed') { setVoice(false); say('Microphone or speech permission was blocked — please allow it and try again.'); return; }
+    if (chat.voiceOn) { if (code !== 'aborted') setTimeout(startListen, 600); return; }   // no-speech etc. → just keep listening
+    say("I didn't catch that — tap 🎙 and try again.");
   };
   listening = true; $('#chatTalk').classList.add('live');
   try { speechRec.start(); } catch (e) { listening = false; $('#chatTalk').classList.remove('live'); }
+}
+function stopListen() { try { if (speechRec && listening) { speechRec.onend = null; speechRec.stop(); } } catch (e) {} listening = false; $('#chatTalk').classList.remove('live'); }
+$('#chatTalk').addEventListener('click', () => {
+  if (!SpeechRec) { say("Voice typing isn't supported in this browser — try Chrome, Edge or Safari, or just type. You can still tap 🎤 to sing to me!"); return; }
+  if (listening) { try { speechRec.stop(); } catch (e) {} return; }
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+  chat.speaking = false; startListen();
+});
+function setVoice(on) {
+  chat.voiceOn = !!on;
+  const b = $('#chatVoice'); b.textContent = on ? '🗣 Voice chat: ON' : '🗣 Voice chat'; b.classList.toggle('live', !!on);
+  if (on) { chat.speak = true; $('#chatSpeak').checked = true; } else { stopListen(); try { window.speechSynthesis.cancel(); } catch (e) {} chat.speaking = false; }
+}
+$('#chatVoice').addEventListener('click', () => {
+  if (!SpeechRec) { say("Voice chat needs speech recognition, which this browser doesn't have — Chrome or Edge on desktop/Android, or Safari, usually work."); return; }
+  if (chat.voiceOn) { setVoice(false); say('Voice chat is off. You can still type or tap 🎙.', { silent: true }); return; }
+  setVoice(true);
+  say("Voice chat is on — just talk to me, like “I'll sing a guitar tune with a trap beat”. When you sing, only your singing is turned into music; I stop listening when you pause. Say “turn off voice chat” to stop.", { speech: "Voice chat is on. Just talk to me. When you want to sing, say, I'll sing, and I'll listen until you pause." });
 });
 
 /* ----- page wiring ----- */
