@@ -706,7 +706,68 @@ function parseChat(text) {
   r.clearAll = has(/ (clear (everything|all)|start over|reset|delete everything|new project) /);
   r.fill = has(/ (fill|fills|drum fill) /);
   r.variation = has(/ (variation|vary|change it up|mix it up|switch it up) /);
+  extraChat(n, text, r);
   return r;
+}
+
+/* ----- friendlier understanding: questions, follow-ups, small talk, unsupported topics, typo hints ----- */
+function lev(a, b) {
+  if (a === b) return 0;
+  const m = a.length, k = b.length; if (!m) return k; if (!k) return m;
+  let prev = []; for (let j = 0; j <= k; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= k; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[k];
+}
+const UNSUPPORTED = [
+  { id: 'lyrics', re: / (lyrics?|write (me )?a song about|words to (the|my) song|rap verse) /, say: "I can't write lyrics or sing words — I turn your voice into instruments and beats. But I can build the music under your tune, and you can add words on top." },
+  { id: 'vocals', re: / (autotune|auto tune|keep my (own )?voice|my real voice|record (my )?vocals?|backing vocals?|harmon(y|ies)|choir) /, say: "Melodize turns your singing into instrument notes rather than keeping the raw vocal. For a harmony feel, layer the same tune on two instruments (like strings and a pad) — I can do that now." },
+  { id: 'mp3', re: / (mp3|midi file|export midi|stems|flac|aac) /, say: "Right now I export WAV files (studio quality), and you can convert them to MP3 in any free converter. MIDI and stem export aren't in yet." },
+  { id: 'share', re: / (upload|share|post|publish|spotify|youtube|instagram|tiktok|soundcloud|whatsapp) /, say: "I can't post online for you, but export gives you a WAV you can upload anywhere." },
+  { id: 'import', re: / (import|upload|load) (a |my |an )?(song|file|loop|sample|audio|track|mp3|wav) /, say: "Importing your own audio files isn't supported yet — right now everything starts from your voice, a beat or the built-in sounds." }
+];
+function extraChat(n, raw, r) {
+  const has = re => re.test(n);
+  r.question = /\?\s*$/.test(String(raw || '').trim()) || has(/^ (can|could|would|will|do|does|is|are|shall|should|how about|what about|whats|what is|why|how) /) || has(/ (is it possible|is there a way|are you able|are we able) /);
+  r.canWe = has(/ (can|could|would|will|shall) (we|you|i|u|this|it)\b/) || has(/ (is it possible|is there a way|are you able|are we able|able to|how about|what about|what if) /) || has(/^ (any chance|maybe|perhaps) /);
+  r.yes = has(/^ (yes|yeah|yea|yep|yup|sure|ok|okay|k|please|pls|go ahead|do it|sounds good|lets do it|lets go|why not|definitely|absolutely|of course|right|correct|that one|that works|perfect) /);
+  r.no = has(/^ (no|nope|nah|not now|not really|dont|cancel|never mind|nevermind|skip|keep them|leave it|no thanks) /);
+  r.again = has(/ (again|another|one more|different (one|style|sound|beat|instrument)|something else|other one|next one|new one|redo|re do|try (a )?(different|another)) /);
+  r.surprise = has(/ (surprise me|you choose|you pick|anything|whatever|your choice|dealer.?s choice|i dont know|idk|not sure what|inspire me) /);
+  r.improve = has(/ (better|cooler|nicer|professional|polished|fuller|richer|improve|more interesting|sound good|sounds good|fix it|make it pop) /) && has(/ (this|it|that|song|track|tune|melody|mix) /);
+  r.whatNext = has(/ (what next|whats next|what now|what should i|what do i do|where do i start|get started|help me start|next step|what else) /);
+  r.removeDrums = has(/ (remove|delete|drop|get rid of|take out|no more) (the |all )?(drums?|beats?|percussion) /);
+  r.removeMelody = has(/ (remove|delete|drop|get rid of|take out) (the |my )?(melody|tune|lead) /);
+  r.like = has(/ (i love (it|this|that)|love it|sounds (great|good|amazing|awesome|nice|perfect|fire)|nailed it|perfect|im happy|so good) /);
+  r.dislike = has(/ (dont like|do not like|hate|not good|sounds (bad|off|weird|wrong|terrible|awful|boring)|doesnt sound|not what i|wrong|boring|meh|ugly|too (loud|quiet|fast|slow|busy|simple)) /);
+  r.how = has(/ (how are you|hows it going|whats up|how do you do|how is it going) /);
+  r.who = has(/ (who are you|what are you|your name|are you (an? )?(ai|bot|robot|real|human|person|chatgpt|claude)|who made you|who built you) /);
+  r.bye = has(/^ (bye|goodbye|see you|later|cya|good night|gotta go) /);
+  r.sorry = has(/ (sorry|my bad|oops|whoops) /);
+  r.bored = has(/ (bored|nothing to do|stuck|no idea|no ideas|blank) /);
+  r.unsupported = null;
+  for (const u of UNSUPPORTED) if (u.re.test(n)) { r.unsupported = u; break; }
+  r.vague = has(/ (something|stuff|thing|things|cool|nice|good) /) && !r.instrument && !r.style && !r.wantBeat && !r.recommend;
+  // typo hints: only when nothing was recognised and the message is short
+  r.didYouMean = null;
+  if (!r.instrument && !r.style && !r.wantBeat && !r.mood && !r.genre) {
+    const words = n.trim().split(' ').filter(w => w.length >= 4);
+    let best = null;
+    for (const w of words) {
+      for (const key of Object.keys(INSTRUMENT_ALIASES)) for (const al of INSTRUMENT_ALIASES[key]) {
+        if (al.indexOf(' ') !== -1 || al.length < 4) continue;
+        const d = lev(w, al); if (d <= (al.length >= 8 ? 2 : 1) && w !== al && (!best || d < best.d)) best = { kind: 'instrument', key, word: w, to: al, d };
+      }
+      for (const key of Object.keys(STYLE_WORDS)) for (const al of STYLE_WORDS[key]) {
+        if (al.indexOf(' ') !== -1 || al.length < 4) continue;
+        const d = lev(w, al); if (d <= (al.length >= 8 ? 2 : 1) && w !== al && (!best || d < best.d)) best = { kind: 'style', key, word: w, to: al, d };
+      }
+    }
+    r.didYouMean = best;
+  }
 }
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,

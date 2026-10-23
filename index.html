@@ -191,6 +191,14 @@
       <button class="btn small ghost" id="chatBack">← Back to studio</button>
       <div class="chat-title">🤖 Melodize Advisor<small id="chatSub">Talk, type, or sing — I'll help you pick instruments and build beats.</small></div>
       <label class="chk"><input type="checkbox" id="chatSpeak"> 🔊 Speak replies</label>
+      <button class="btn small" id="chatCfg" title="Connect a real AI (optional)">⚙ AI: built-in</button>
+    </div>
+    <div class="tip" id="aiCfg" style="display:none;margin-top:10px">
+      <b>Real AI mode (optional).</b> Paste your Melodize AI server address (see AI_SETUP.md). Leave blank to use the free built-in brain. Only a short text description of your tune is sent — never audio.
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input type="text" id="aiUrl" placeholder="https://melodize-ai.yourname.workers.dev" style="flex:1;min-width:200px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:.82rem">
+        <button class="btn small primary" id="aiSave">Save &amp; test</button>
+      </div>
     </div>
     <div class="chat-msgs" id="chatMsgs"></div>
     <div class="chat-chips" id="chatChips"></div>
@@ -1145,6 +1153,7 @@ function speakText(t) {
 }
 function say(text, opts) {
   opts = opts || {};
+  if (chat.lead) { text = chat.lead + ' ' + text; chat.lead = ''; }
   const el = document.createElement('div'); el.className = 'msg bot';
   const p = document.createElement('div'); p.className = 'txt'; p.textContent = text; el.appendChild(p);
   (opts.cards || []).forEach(c => el.appendChild(c));
@@ -1289,9 +1298,115 @@ function clearAllTracks() {
   say('All clear — fresh start. Sing me something!', { chips: STARTER() });
 }
 
+/* ----- friendlier brain layer: questions, follow-ups, small talk, honest limits ----- */
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const ALL_STYLES = ['house','techno','trap','boombap','dnb','lofi','rock','disco','reggaeton','afro','pop','bigroom'];
+const BASS_KEYS = ['bass','sub','wobble','acid'];
+chat.pending = null; chat.last = null; chat.lead = ''; chat.misses = 0; chat.prevMiss = 0; chat.history = [];
+const ACKS = ['Sure thing!', 'Absolutely!', 'Yes we can!', 'On it!', 'Love that idea.', 'Great call.'];
+
+function suggestNext() {
+  const mel = tracks.filter(t => t.type === 'melody'), hasDr = !!lastDrum(), hasBass = mel.some(t => BASS_KEYS.indexOf(t.instKey) !== -1);
+  const out = [];
+  if (!chat.take && !mel.length) { out.push({ label: '🎤 Sing a tune', fn: () => chatSing('melody') }, { label: '🥁 Beatbox a rhythm', fn: () => chatSing('beatbox') }, { label: 'Make a beat', say: 'make a beat' }, { label: 'Surprise me', say: 'surprise me' }); return out; }
+  if (chat.take && !mel.length) out.push({ label: 'Which instrument suits it?', say: 'which instrument suits this' }, { label: 'Build me a full song', say: 'build me a full song' });
+  if (!hasDr) out.push({ label: 'Add a beat', say: 'make a beat' });
+  if (mel.length && !hasBass && chat.take) out.push({ label: 'Add a bass line', say: 'add bass' });
+  if (hasDr) out.push({ label: 'Add fills', say: 'add fills' }, { label: 'Give me a variation', say: 'give me a variation' });
+  if (tracks.length) out.push({ label: '▶ Play', say: 'play' }, { label: 'Export it', say: 'export' });
+  return out.slice(0, 6);
+}
+function offer(question, yesFn, extraChips) {
+  chat.pending = yesFn;
+  say(question, { chips: [{ label: 'Yes, do it', fn: () => { chat.pending = null; yesFn(); } }, { label: 'No thanks', say: 'no' }].concat(extraChips || []) });
+}
+const UNSUP_CHIPS = () => suggestNext().slice(0, 3);
+
 async function respond(text) {
   text = String(text || '').trim(); if (!text) return;
   const r = DSP.parseChat(text);
+  chat.prevMiss = chat.misses; chat.misses = 0;
+  const want = r.instrument || r.wantBeat || r.buildSong || r.style;
+  chat.history.push({ role: 'user', content: text }); if (chat.history.length > 14) chat.history.shift();
+  // answer a pending "want me to…?" question
+  if (chat.pending && !want) {
+    const fn = chat.pending;
+    if (r.yes && !r.no) { chat.pending = null; chat.lead = pick(['Great!', 'Awesome.', 'Here we go.']); await fn(); return; }
+    if (r.no) { chat.pending = null; say(pick(["No problem — tell me what you'd like instead.", "Okay, no worries. What shall we do?", "Sure, we'll skip that."]), { chips: suggestNext() }); return; }
+  }
+  chat.pending = null;
+  if (r.yes && !want && !r.question && text.split(/\s+/).length <= 3) { say(pick(['Glad you like it! ', 'Nice. ']) + 'What shall we do next?', { chips: suggestNext() }); return; }
+  if (r.no && !want) { say(pick(["Okay — I'm here when you need me.", 'No worries. Tell me whatever comes to mind.']), { chips: suggestNext() }); return; }
+  if (r.bye) { say("Bye for now! Your tracks stay in the studio — come back anytime. 🎶"); return; }
+  if (r.who) { say("I'm the Melodize advisor — a helper built into this studio. I listen to your tune, suggest instruments, make beats and build songs. Tell me what you're in the mood for!", { chips: suggestNext() }); return; }
+  if (r.how && !want) { say(pick(["Doing great and ready to make music! What are we creating?", "Feeling musical! Want to sing me something?"]), { chips: suggestNext() }); return; }
+  if (r.sorry && !want) { say(pick(["No need to apologise — nothing's broken. What next?", 'All good! Want to try again?']), { chips: suggestNext() }); return; }
+  if (r.bored || r.whatNext) { say(pick(["Here's an idea — ", "Let's get you going: "]) + (tracks.length ? 'we have ' + tracks.length + ' track' + (tracks.length > 1 ? 's' : '') + ' so far, so ' : '') + 'pick one of these.', { chips: suggestNext() }); return; }
+  if (r.like && !want) { say(pick(['Yay, glad you like it! ', 'Love hearing that. ']) + "Want to keep building, or export it?", { chips: suggestNext() }); return; }
+  if (r.dislike && !want) {
+    const d = lastDrum(), last = chat.last;
+    const chips = [];
+    if (last && last.action === 'beat') chips.push({ label: 'Different beat style', say: 'try a different beat' });
+    if (chat.take) chips.push({ label: 'Try another instrument', say: 'try another instrument' });
+    if (d) chips.push({ label: 'Make a variation', say: 'give me a variation' });
+    chips.push({ label: 'Faster', say: 'faster' }, { label: 'Slower', say: 'slower' }, { label: 'Undo last', say: 'undo' });
+    say("Thanks for telling me — let's fix it. What feels off: the instrument, the beat, or the speed?", { chips }); return;
+  }
+  if (r.unsupported) { say(r.unsupported.say, { chips: UNSUP_CHIPS() }); return; }
+  if (r.removeDrums) {
+    const d = lastDrum(); if (!d) { say("There aren't any drums to remove.", { chips: suggestNext() }); return; }
+    removeTrack(d.id); say('Drums removed.', { chips: [{ label: 'Make a different beat', say: 'make a beat' }, { label: 'Undo → add it back', say: 'make a beat' }] }); return;
+  }
+  if (r.removeMelody) {
+    const m = tracks.slice().reverse().find(t => t.type === 'melody'); if (!m) { say("There's no melody track to remove.", { chips: suggestNext() }); return; }
+    removeTrack(m.id); say('Removed the ' + m.def.label + ' track.', { chips: suggestNext() }); return;
+  }
+  if (r.surprise) {
+    chat.lead = pick(["Let's go with a surprise!", 'Okay, my pick:']);
+    if (chat.take) { await buildSong(); chat.last = { action: 'song' }; return; }
+    const s = pick(ALL_STYLES); await makeBeat(s); chat.last = { action: 'beat', style: s }; return;
+  }
+  // "again / another / different" follows the last thing we did
+  if (r.again && !r.style && !r.instrument && chat.last) {
+    if (/ (instrument|sound)s? /.test(' ' + text.toLowerCase() + ' ') && chat.take) chat.last = { action: 'instrument', key: (chat.last && chat.last.key) || '' };
+    if (chat.last.action === 'beat') {
+      const s = pick(ALL_STYLES.filter(x => x !== chat.last.style)); chat.lead = 'Here is a different flavour.';
+      const d = lastDrum(); if (d && !r.wantBeat) removeTrack(d.id);
+      await makeBeat(s); chat.last = { action: 'beat', style: s }; return;
+    }
+    if (chat.last.action === 'instrument' && chat.take) {
+      const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre }).filter(x => x.key !== chat.last.key && BASS_KEYS.indexOf(x.key) === -1);
+      const nxt = ranked[Math.floor(Math.random() * Math.min(4, ranked.length))] || ranked[0];
+      if (nxt) { const m = tracks.slice().reverse().find(t => t.type === 'melody'); if (m && m.instKey === chat.last.key) removeTrack(m.id); chat.lead = 'How about this one?'; await applyInstrument(nxt.key, nxt.octave); chat.last = { action: 'instrument', key: nxt.key }; return; }
+    }
+    if (chat.last.action === 'song' || lastDrum()) { const d = lastDrum(); if (d) { makeVariation(d); say('Here is another variation.', { chips: [{ label: '▶ Play', say: 'play' }, { label: 'Another', say: 'another one' }] }); return; } }
+  }
+  // "can we / could you …?" with a concrete target → say yes and do it
+  if (r.canWe && want && !r.sing && !r.beatbox) chat.lead = pick(ACKS);
+  // "can we …?" but nothing concrete → guide instead of failing
+  if ((r.canWe || r.question || r.improve || r.vague) && !want && !r.sing && !r.beatbox && !r.recommend && !r.fill && !r.variation && !r.play && !r.stop && !r.exportSong && !r.undo && !r.mood && !r.genre && !r.bpm && !r.tempoDelta && !r.help && !r.greet && !r.thanks && !r.saveProject && !r.clearAll) {
+    const bits = [];
+    if (r.canWe) bits.push(pick(['Yes — I can probably help with that.', 'Good question, and most likely yes!']));
+    bits.push("I can listen to a tune and pick an instrument, make beats in 12 styles (house, trap, lofi, rock…), build a bass line, add fills, and put it all together as a song.");
+    bits.push(r.improve ? "To make it sound better, I'd try one of these:" : "Tell me a little more, or tap an idea:");
+    say(bits.join(' '), { chips: suggestNext() }); return;
+  }
+  // typo rescue: “did you mean violin?”
+  if (r.didYouMean && !r.sing && !r.recommend && !r.play && !r.stop && !r.mood && !r.genre && !r.bpm) {
+    const d = r.didYouMean;
+    const label = d.kind === 'instrument' ? ALL_INST[d.key].label : STYLE_LABEL[d.key];
+    const go = d.kind === 'instrument' ? () => applyInstrument(d.key) : () => makeBeat(d.key);
+    say('Did you mean “' + label + '”?', { chips: [{ label: 'Yes, ' + label, fn: () => { userMsg('Yes, ' + label); chat.last = d.kind === 'instrument' ? { action: 'instrument', key: d.key } : { action: 'beat', style: d.key }; go(); } }, { label: 'No', say: 'no' }].concat(suggestNext().slice(0, 2)) });
+    return;
+  }
+  await respondCore(text, r);
+  // remember what we just did so “another one” works
+  if (r.instrument && !r.wantBeat) chat.last = { action: 'instrument', key: r.instrument };
+  else if (r.wantBeat) chat.last = { action: 'beat', style: r.style };
+  else if (r.buildSong) chat.last = { action: 'song' };
+}
+
+async function respondCore(text, r) {
   const create = /\b(make|add|create|give|need|want|build|generate|put|use|set)\b/i.test(text);
   if (chat.recording && (r.stop || r.sing)) { finishChatRecording(); return; }
   if (r.help) { say(HELP_TEXT, { chips: STARTER(), speech: 'I can listen to your tune, suggest instruments, make beats and build a song. Try saying: make a trap beat, or put it on violin.' }); return; }
@@ -1343,13 +1458,87 @@ async function respond(text) {
     say('Noted — ' + [r.mood, r.genre].filter(Boolean).join(' / ') + '. Sing me a tune and I\'ll pick instruments for that feel.', { chips: STARTER() }); return;
   }
   if (r.bpm || r.tempoDelta) { say('Tempo is now ' + S.bpm + ' BPM.', { chips: [{ label: '▶ Play', say: 'play' }] }); return; }
-  say("I'm not sure I got that. I understand things like “make a trap beat”, “put it on violin”, “which instrument suits this?” or “build me a full song”.", { chips: STARTER() });
+  chat.misses = chat.prevMiss + 1;
+  if (chat.misses >= 2) { chat.misses = 0; say("Hmm, I'm still missing it — sorry! Here's what I can do, and you can also just tap an idea below.\n" + HELP_TEXT, { chips: suggestNext() }); return; }
+  say(pick(["I didn't quite catch that — could you say it another way? You can ask me for a beat, an instrument, or a whole song.", "Not sure I understood — try something like “can we make a lofi beat?” or “put my tune on violin”. Or tap an idea:", "Hmm, that one's new to me! Tell me what you'd like to hear (a style, an instrument, a mood) and I'll make it happen."]), { chips: suggestNext() });
 }
 
-function handleText(text, echo) {
+/* ----- optional real-AI mode: a tiny server (Cloudflare Worker) holds the API key; we send chat text + a text summary of the studio ----- */
+let aiUrl = ''; try { aiUrl = localStorage.getItem('melodize_ai_url') || ''; } catch (e) {}
+function refreshAiBtn() { $('#chatCfg').textContent = aiUrl ? '⚙ AI: real' : '⚙ AI: built-in'; }
+function studioState() {
+  const f = chat.take ? DSP.melodyFeatures(chat.take.secNotes) : null;
+  return {
+    bpm: S.bpm, bars: S.bars, key: chat.take && chat.take.key || null, mood: chat.mood, genre: chat.genre,
+    tune: f ? { notes: f.count, description: DSP.describeMelody(f) } : null,
+    tracks: tracks.map(t => t.type === 'drums' ? { type: 'drums', kit: t.kit } : { type: 'melody', instrument: t.instKey }),
+    last: chat.last
+  };
+}
+function runAiAction(a) {
+  const valid = k => ALL_INST[k];
+  switch (a && a.type) {
+    case 'set_instrument': return valid(a.instrument) ? applyInstrument(a.instrument).then(() => { chat.last = { action: 'instrument', key: a.instrument }; }) : null;
+    case 'make_beat': { const s = ALL_STYLES.indexOf(a.style) !== -1 ? a.style : null; return makeBeat(s, { quiet: true }).then(() => { chat.last = { action: 'beat', style: s }; }); }
+    case 'build_song': return buildSong();
+    case 'set_bpm': { const v = Number(a.bpm); if (v >= 60 && v <= 200) applyBpm(Math.round(v)); return null; }
+    case 'set_mood': if (['happy','sad','energetic','calm','dark','epic'].indexOf(a.value) !== -1) chat.mood = a.value; return null;
+    case 'set_genre': if (['pop','edm','rock','hiphop','classical','folk','jazz','cinematic'].indexOf(a.value) !== -1) chat.genre = a.value; return null;
+    case 'play': return Tone.start().then(startPlayback);
+    case 'stop': stopPlayback(); return null;
+    case 'add_fills': { const d = lastDrum(); if (d) { d.fills = true; buildPart(d); renderTracks(); } return null; }
+    case 'variation': { const d = lastDrum(); if (d) makeVariation(d); return null; }
+    case 'undo': { const t = tracks[tracks.length - 1]; if (t) removeTrack(t.id); return null; }
+    case 'recommend': if (chat.take) recommendReply(''); return null;
+    case 'sing_prompt': return chatSing(a.kind === 'beatbox' ? 'beatbox' : 'melody');
+    case 'export': if (tracks.length) $('#exportBtn').click(); return null;
+  }
+  return null;
+}
+async function askAI(text) {
+  chat.history.push({ role: 'user', content: text }); if (chat.history.length > 14) chat.history.shift();
+  const typing = say('…', { silent: true, chips: [] });
+  try {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 25000);
+    const res = await fetch(aiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: chat.history, state: studioState() }), signal: ctl.signal });
+    clearTimeout(to);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data || typeof data.reply !== 'string') throw new Error('bad reply');
+    typing.remove();
+    chat.history.push({ role: 'assistant', content: data.reply });
+    const acts = Array.isArray(data.actions) ? data.actions.slice(0, 5) : [];
+    say(data.reply, { chips: suggestNext() });
+    for (const a of acts) { try { await runAiAction(a); } catch (e) { console.error(e); } }
+    if (acts.length && acts.some(a => ['make_beat','set_instrument','set_bpm','build_song'].indexOf(a.type) !== -1)) setChips(suggestNext());
+    return true;
+  } catch (e) {
+    console.error(e); typing.remove();
+    say("I couldn't reach the AI server just now, so I'll use my built-in brain for this one.", { chips: [] });
+    return false;
+  }
+}
+async function handleText(text, echo) {
   if (echo !== false) userMsg(text);
+  if (aiUrl) { const ok = await askAI(text); if (ok) return; }
   return respond(text);
 }
+$('#chatCfg').addEventListener('click', () => { const p = $('#aiCfg'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; $('#aiUrl').value = aiUrl; });
+$('#aiSave').addEventListener('click', async () => {
+  const v = ($('#aiUrl').value || '').trim().replace(/\/+$/, '');
+  if (!v) { aiUrl = ''; try { localStorage.removeItem('melodize_ai_url'); } catch (e) {} refreshAiBtn(); $('#aiCfg').style.display = 'none'; say('Back to the built-in brain. 👍', { chips: suggestNext() }); return; }
+  if (!/^https:\/\//.test(v)) { say('The AI address must start with https://', { chips: [] }); return; }
+  say('Testing the connection…', { silent: true, chips: [] });
+  try {
+    const res = await fetch(v, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: [{ role: 'user', content: 'Say hi in one short sentence.' }], state: studioState() }) });
+    const d = await res.json();
+    if (!res.ok || typeof d.reply !== 'string') throw new Error(d && d.error || 'bad reply');
+    aiUrl = v; try { localStorage.setItem('melodize_ai_url', v); } catch (e) {}
+    refreshAiBtn(); $('#aiCfg').style.display = 'none';
+    say('Connected! Real AI mode is on — ' + d.reply, { chips: suggestNext() });
+  } catch (e) { say("That address didn't work (" + (e.message || 'no response') + "). Check AI_SETUP.md and try again — the built-in brain is still active.", { chips: [] }); }
+});
+refreshAiBtn();
 
 /* ----- singing / beatboxing inside the chat ----- */
 async function chatSing(kind) {
