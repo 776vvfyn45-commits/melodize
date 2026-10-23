@@ -632,8 +632,85 @@ function recommendInstruments(notes, ctx) {
   return out;
 }
 
+/* ---------- Chat brain: turn a typed / spoken sentence into structured intents (rule-based, no network) ---------- */
+const INSTRUMENT_ALIASES = {
+  eguitar:['electric guitar','e guitar','rock guitar','distorted guitar'], nylon:['nylon guitar','nylon','classical guitar','spanish guitar'],
+  guitar:['acoustic guitar','guitar','acoustic'], bass:['bass guitar','electric bass','bass'], sub:['sub bass','subbass','sub','808 bass'],
+  piano:['piano','keyboard','keys'], violin:['violin','fiddle'], cello:['cello'], flute:['flute'], clarinet:['clarinet'],
+  sax:['saxophone','sax'], trumpet:['trumpet'], trombone:['trombone'], horn:['french horn','horn'], harp:['harp'],
+  organ:['organ'], harmonium:['harmonium'], xylo:['xylophone','xylo','marimba'],
+  supersaw:['supersaw','super saw','edm lead','synth lead','lead synth','lead'], pluck:['pluck','plucky'],
+  pad:['synth pad','pad','ambient pad'], wobble:['wobble bass','wobble','dubstep'], acid:['acid','303'],
+  bell:['electric piano','e piano','epiano','rhodes','bell','bells'], chip:['chiptune','8 bit','8-bit','chip','retro game']
+};
+const STYLE_WORDS = {
+  bigroom:['big room','festival','drop'], techno:['techno'], house:['house','edm','club','dance'],
+  trap:['trap'], boombap:['boom bap','hip hop','hiphop','rap'], dnb:['drum and bass','drum n bass','dnb','jungle'],
+  rock:['rock'], pop:['pop'], disco:['disco','funk'], reggaeton:['reggaeton','dembow'],
+  afro:['afro','latin','afrobeat'], lofi:['lofi','lo fi','lo-fi']
+};
+const STRONG_STYLES = ['house','techno','trap','dnb','reggaeton','disco','boombap','bigroom','lofi','afro'];
+const MOOD_WORDS = {
+  happy:['happy','joyful','cheerful','fun','bright','uplifting'], sad:['sad','melancholy','melancholic','emotional','heartbreak','heartbroken','crying'],
+  energetic:['energetic','energy','hype','upbeat','party','pumped','workout','exciting'], calm:['calm','chill','relax','relaxing','relaxed','peaceful','soft','dreamy','sleepy'],
+  dark:['dark','moody','scary','heavy','aggressive','gritty'], epic:['epic','heroic','powerful','grand','massive','dramatic']
+};
+const GENRE_WORDS = {
+  pop:['pop'], edm:['edm','electronic','dance','house','techno'], rock:['rock','metal','punk'], hiphop:['hip hop','hiphop','rap','trap'],
+  classical:['classical','orchestra','orchestral'], folk:['folk','country','acoustic'], jazz:['jazz','blues'], cinematic:['cinematic','film','movie','soundtrack','trailer']
+};
+function normText(t) {
+  return ' ' + String(t || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9\- ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+}
+function findWord(n, list) {   // returns the matched keyword (longest first) or null
+  const sorted = list.slice().sort((a, b) => b.length - a.length);
+  for (const w of sorted) if (n.indexOf(' ' + w + ' ') !== -1 || n.indexOf(' ' + w + 's ') !== -1) return w;
+  return null;
+}
+function parseChat(text) {
+  const n = normText(text);
+  const r = { text: String(text || '').trim(), instrument: null, style: null, mood: null, genre: null, bpm: null, tempoDelta: 0 };
+  const has = re => re.test(n);
+  // instrument: longest alias wins across all instruments
+  let bestLen = 0;
+  Object.keys(INSTRUMENT_ALIASES).forEach(key => {
+    const w = findWord(n, INSTRUMENT_ALIASES[key]);
+    if (w && w.length > bestLen) { bestLen = w.length; r.instrument = key; }
+  });
+  bestLen = 0;
+  Object.keys(STYLE_WORDS).forEach(key => {
+    const w = findWord(n, STYLE_WORDS[key]);
+    if (w && w.length > bestLen) { bestLen = w.length; r.style = key; }
+  });
+  Object.keys(MOOD_WORDS).forEach(k => { if (!r.mood && findWord(n, MOOD_WORDS[k])) r.mood = k; });
+  bestLen = 0;
+  Object.keys(GENRE_WORDS).forEach(k => { const w = findWord(n, GENRE_WORDS[k]); if (w && w.length > bestLen) { bestLen = w.length; r.genre = k; } });
+  let m = n.match(/ (\d{2,3}) ?(bpm|beats per minute) /) || n.match(/ (?:tempo|bpm) (?:of |to |at |is )?(\d{2,3}) /) || n.match(/ at (\d{2,3}) /);
+  if (m) { const v = parseInt(m[1], 10); if (v >= 50 && v <= 220) r.bpm = Math.max(60, Math.min(200, v)); }
+  if (has(/ (faster|speed (it )?up|quicker) /)) r.tempoDelta = 10;
+  if (has(/ (slower|slow (it )?down) /)) r.tempoDelta = -10;
+  r.greet = has(/^ (hi|hello|hey|hola|namaste|yo|good (morning|evening|afternoon)) /);
+  r.help = has(/ (help|what can you do|what do you do|how do i|how does this work|commands|options) /);
+  r.thanks = has(/ (thanks|thank you|thx|cheers|awesome|great job|nice) /) && !has(/ (make|add|play) /);
+  r.sing = has(/ (sing|hum|humming|whistle|record|listen to me|let me sing|here is my tune|mic|my voice) /) && !has(/ (stop recording) /);
+  r.beatbox = has(/ (beatbox|beat box|beatboxing) /);
+  r.buildSong = has(/ (full song|whole song|complete song|build (me )?a song|make (me )?a song|song starter|arrange it|finish (my )?song|full track) /);
+  const beatWord = has(/ (beat|beats|drum|drums|rhythm|groove|percussion|drumbeat) /);
+  r.wantBeat = !r.beatbox && (beatWord || (r.style && STRONG_STYLES.indexOf(r.style) !== -1 && !r.instrument && !has(/ (song|track) /)));
+  r.recommend = has(/ (which|what) (instrument|sound)s? |recommend|suggest|suits?|suitable|fits?|best (instrument|sound)|advice|advise|belongs? /) ;
+  r.play = has(/ (play|start|hear it|listen) /) && !r.sing;
+  r.stop = has(/ (stop|pause|silence|quiet) /);
+  r.exportSong = has(/ (export|download|render|bounce|save as wav|save (the )?song) /);
+  r.saveProject = has(/ save (the |my )?project /);
+  r.undo = has(/ (undo|remove (the )?last|delete (the )?last|take (that )?back|scrap that) /);
+  r.clearAll = has(/ (clear (everything|all)|start over|reset|delete everything|new project) /);
+  r.fill = has(/ (fill|fills|drum fill) /);
+  r.variation = has(/ (variation|vary|change it up|mix it up|switch it up) /);
+  return r;
+}
+
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
   quantizeNotes, transcribe, detectDrumHits, hitsToPattern, encodeWav,
-  INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments };
+  INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });
