@@ -519,7 +519,121 @@ function encodeWav(channels, sampleRate) {
   return buf;
 }
 
+/* ---------- Instrument advisor: describe a melody and rank instruments for it ---------- */
+// lo/hi = comfortable MIDI range, sweet = centre of its best register, sustain 0 (plucked) .. 1 (bowed/blown/held),
+// agile = how comfortably it plays fast passages, moods / genres = 0..1 affinity
+const INSTRUMENT_PROFILES = {
+  piano:     { lo:36, hi:96,  sweet:66, sustain:.50, agile:.95, moods:{happy:.6,sad:.7,calm:.7,energetic:.5,dark:.4,epic:.5}, genres:{pop:.9,classical:.9,jazz:.8,cinematic:.7,folk:.5,edm:.4,rock:.5,hiphop:.6} },
+  guitar:    { lo:40, hi:84,  sweet:60, sustain:.30, agile:.70, moods:{happy:.8,sad:.6,calm:.7,energetic:.5,dark:.2,epic:.2}, genres:{folk:1,pop:.8,rock:.5,jazz:.3,cinematic:.3} },
+  eguitar:   { lo:40, hi:88,  sweet:62, sustain:.50, agile:.80, moods:{energetic:1,epic:.6,dark:.6,happy:.5,sad:.3,calm:.1}, genres:{rock:1,pop:.6,edm:.3,jazz:.3,hiphop:.2} },
+  nylon:     { lo:40, hi:84,  sweet:62, sustain:.30, agile:.70, moods:{calm:1,sad:.7,happy:.5,dark:.2,energetic:.2,epic:.1}, genres:{folk:.9,jazz:.6,classical:.6,cinematic:.3,pop:.4} },
+  bass:      { lo:28, hi:67,  sweet:46, sustain:.50, agile:.60, moods:{energetic:.7,dark:.7,happy:.4,calm:.3,sad:.3,epic:.3}, genres:{rock:.8,hiphop:.9,pop:.6,edm:.6,jazz:.8,folk:.3} },
+  violin:    { lo:55, hi:100, sweet:76, sustain:1.0, agile:.70, moods:{sad:1,epic:.7,calm:.5,happy:.4,dark:.4,energetic:.3}, genres:{classical:1,cinematic:.9,folk:.7,pop:.3} },
+  cello:     { lo:36, hi:81,  sweet:55, sustain:1.0, agile:.50, moods:{sad:1,dark:.8,epic:.8,calm:.6,happy:.2,energetic:.2}, genres:{classical:1,cinematic:1,folk:.4,pop:.3} },
+  flute:     { lo:60, hi:96,  sweet:79, sustain:.80, agile:.80, moods:{calm:1,happy:.7,sad:.4,energetic:.2,dark:.1,epic:.2}, genres:{classical:.8,folk:.8,cinematic:.6,pop:.3,jazz:.3} },
+  clarinet:  { lo:50, hi:91,  sweet:70, sustain:.80, agile:.70, moods:{calm:.7,happy:.6,sad:.5,dark:.3,energetic:.3,epic:.2}, genres:{jazz:1,classical:.8,folk:.4,cinematic:.3} },
+  sax:       { lo:46, hi:84,  sweet:64, sustain:.80, agile:.80, moods:{sad:.8,calm:.6,energetic:.5,happy:.4,dark:.4,epic:.2}, genres:{jazz:1,pop:.7,rock:.5,hiphop:.4,cinematic:.3} },
+  trumpet:   { lo:52, hi:88,  sweet:70, sustain:.60, agile:.80, moods:{epic:1,energetic:.9,happy:.8,dark:.2,sad:.3,calm:.1}, genres:{jazz:.9,cinematic:.8,classical:.6,pop:.5,rock:.3} },
+  trombone:  { lo:40, hi:77,  sweet:55, sustain:.70, agile:.40, moods:{epic:.8,energetic:.6,dark:.6,happy:.4,sad:.3,calm:.1}, genres:{jazz:.8,cinematic:.7,classical:.5,rock:.2} },
+  horn:      { lo:34, hi:77,  sweet:55, sustain:.90, agile:.30, moods:{epic:1,calm:.6,dark:.5,sad:.5,happy:.3,energetic:.2}, genres:{cinematic:1,classical:.9} },
+  harp:      { lo:30, hi:100, sweet:66, sustain:.30, agile:.90, moods:{calm:1,happy:.6,sad:.5,epic:.3,dark:.1,energetic:.1}, genres:{classical:.8,cinematic:.8,folk:.5,pop:.2} },
+  organ:     { lo:36, hi:84,  sweet:60, sustain:1.0, agile:.60, moods:{epic:.8,dark:.6,calm:.5,sad:.4,happy:.3,energetic:.3}, genres:{classical:.7,rock:.6,cinematic:.7,folk:.3,jazz:.4} },
+  harmonium: { lo:36, hi:84,  sweet:60, sustain:1.0, agile:.50, moods:{calm:1,sad:.7,happy:.3,epic:.2,dark:.2,energetic:.1}, genres:{folk:1,classical:.4,cinematic:.2} },
+  xylo:      { lo:67, hi:108, sweet:84, sustain:0.0, agile:1.0, moods:{happy:1,energetic:.6,calm:.2,sad:.1,dark:0,epic:.1}, genres:{pop:.5,folk:.5,classical:.3,cinematic:.2} },
+  supersaw:  { lo:48, hi:96,  sweet:69, sustain:.70, agile:.80, moods:{energetic:1,happy:.9,epic:.9,calm:.2,sad:.2,dark:.3}, genres:{edm:1,pop:.8,cinematic:.3} },
+  pluck:     { lo:48, hi:96,  sweet:69, sustain:.10, agile:1.0, moods:{energetic:.9,happy:.8,calm:.3,sad:.3,dark:.2,epic:.3}, genres:{edm:1,pop:.8,hiphop:.5} },
+  pad:       { lo:36, hi:84,  sweet:58, sustain:1.0, agile:.20, moods:{calm:1,sad:.6,dark:.6,epic:.6,happy:.3,energetic:.1}, genres:{cinematic:1,edm:.7,pop:.5} },
+  sub:       { lo:24, hi:55,  sweet:38, sustain:.60, agile:.40, moods:{dark:1,energetic:.7,epic:.4,calm:.2,sad:.2,happy:.1}, genres:{edm:1,hiphop:1,pop:.5} },
+  wobble:    { lo:24, hi:60,  sweet:41, sustain:.70, agile:.50, moods:{energetic:1,dark:.9,epic:.4,calm:0,sad:0,happy:.2}, genres:{edm:1,hiphop:.4} },
+  acid:      { lo:36, hi:72,  sweet:52, sustain:.30, agile:.90, moods:{energetic:1,dark:.6,happy:.3,epic:.2,calm:0,sad:.1}, genres:{edm:1} },
+  bell:      { lo:55, hi:100, sweet:76, sustain:.20, agile:.70, moods:{calm:.8,happy:.7,sad:.6,epic:.3,dark:.2,energetic:.2}, genres:{pop:.6,cinematic:.7,edm:.5,jazz:.4} },
+  chip:      { lo:48, hi:96,  sweet:72, sustain:.40, agile:1.0, moods:{happy:1,energetic:.9,calm:.1,sad:.1,dark:.1,epic:.3}, genres:{edm:.4,pop:.3} }
+};
+const clamp01 = x => Math.max(0, Math.min(1, x));
+
+// notes: [{midi, start, dur}] in seconds
+function melodyFeatures(notes) {
+  const n = notes.length;
+  if (!n) return null;
+  const midis = notes.map(x => x.midi), sorted = midis.slice().sort((a, b) => a - b);
+  const first = Math.min(...notes.map(x => x.start)), last = Math.max(...notes.map(x => x.start + x.dur));
+  const span = Math.max(0.5, last - first);
+  const avgDur = notes.reduce((a, x) => a + x.dur, 0) / n;
+  const legato = clamp01(notes.reduce((a, x) => a + x.dur, 0) / span);
+  let step = 0, leap = 0, rep = 0;
+  for (let i = 1; i < n; i++) {
+    const d = Math.abs(midis[i] - midis[i - 1]);
+    if (d === 0) rep++; if (d <= 2) step++; if (d >= 5) leap++;
+  }
+  const intervals = Math.max(1, n - 1);
+  return {
+    count: n, median: median(midis), low: sorted[0], high: sorted[n - 1], range: sorted[n - 1] - sorted[0],
+    avgDur, noteRate: n / span, legato,
+    stepwise: step / intervals, leaps: leap / intervals, repeats: rep / intervals,
+    sustainLevel: clamp01((avgDur - 0.15) / 0.85) * 0.7 + legato * 0.3,
+    speed: clamp01((n / span) / 5)
+  };
+}
+
+function describeMelody(f) {
+  const reg = f.median < 48 ? 'low' : f.median < 60 ? 'low-to-mid' : f.median < 72 ? 'mid-range' : f.median < 84 ? 'high' : 'very high';
+  const motion = f.stepwise > 0.65 ? 'smooth, stepwise' : f.leaps > 0.35 ? 'jumpy with big leaps' : 'balanced';
+  const feel = f.noteRate < 1.2 ? 'slow' : f.noteRate < 3 ? 'medium-paced' : 'fast';
+  const notesTxt = f.avgDur > 0.5 ? 'long held notes' : f.avgDur < 0.25 ? 'short quick notes' : 'medium-length notes';
+  return reg + ' register (' + midiToNoteName(f.low) + '–' + midiToNoteName(f.high) + '), ' + motion + ', ' + feel + ' with ' + notesTxt;
+}
+
+function rangeFit(midis, prof, shift) {
+  let inside = 0;
+  for (const m of midis) {
+    const x = m + 12 * shift;
+    const out = x < prof.lo ? prof.lo - x : (x > prof.hi ? x - prof.hi : 0);
+    inside += clamp01(1 - out / 8);
+  }
+  inside /= midis.length;
+  const med = median(midis) + 12 * shift;
+  return 0.6 * inside + 0.4 * (1 - Math.min(1, Math.abs(med - prof.sweet) / 18));
+}
+
+const MOOD_LABEL = { happy:'happy', sad:'sad', energetic:'energetic', calm:'calm', dark:'dark', epic:'epic' };
+// notes: [{midi,...}], ctx: { mood, genre }  -> sorted list [{ key, pct, octave, reason }]
+function recommendInstruments(notes, ctx) {
+  const f = melodyFeatures(notes);
+  if (!f) return [];
+  ctx = ctx || {};
+  const midis = notes.map(n => n.midi);
+  const out = [];
+  Object.keys(INSTRUMENT_PROFILES).forEach(key => {
+    const p = INSTRUMENT_PROFILES[key];
+    let bestShift = 0, bestReg = -1;
+    for (let k = -2; k <= 2; k++) {
+      const r = rangeFit(midis, p, k) - 0.1 * Math.abs(k);      // prefer no shift; never more than 2 octaves
+      if (r > bestReg) { bestReg = r; bestShift = k; }
+    }
+    const reg = clamp01(bestReg);
+    const sus = 1 - Math.abs(f.sustainLevel - p.sustain);
+    const agile = f.speed <= p.agile ? 1 : clamp01(1 - (f.speed - p.agile) * 1.5);
+    let score = 0.5 * reg + 0.3 * sus + 0.2 * agile, maxS = 1;
+    const mw = ctx.mood ? (p.moods[ctx.mood] || 0) : 0, gw = ctx.genre ? (p.genres[ctx.genre] || 0) : 0;
+    if (ctx.mood) { score += 0.25 * mw; maxS += 0.25; }
+    if (ctx.genre) { score += 0.25 * gw; maxS += 0.25; }
+    const bits = [];
+    if (reg >= 0.8 && bestShift === 0) bits.push('your melody sits right in its natural range');
+    else if (bestShift !== 0) bits.push("I'd move it " + (bestShift > 0 ? 'up' : 'down') + ' ' + Math.abs(bestShift) + ' octave' + (Math.abs(bestShift) > 1 ? 's' : '') + ' to fit its range');
+    if (sus >= 0.75) bits.push(f.sustainLevel > 0.5 ? 'long, flowing notes suit its sustained tone' : 'short, punchy notes suit its plucked attack');
+    if (f.speed > 0.55 && p.agile >= 0.8) bits.push('it handles fast passages cleanly');
+    if (ctx.mood && mw >= 0.7) bits.push("it's a classic choice for a " + MOOD_LABEL[ctx.mood] + ' feel');
+    if (ctx.genre && gw >= 0.7) bits.push('it fits ' + ctx.genre + ' really well');
+    if (!bits.length) bits.push('a workable match for this tune');
+    const reason = bits.slice(0, 3).join('; ');
+    out.push({ key, pct: Math.round(100 * clamp01(score / maxS)), octave: bestShift, reason: reason.charAt(0).toUpperCase() + reason.slice(1) + '.' });
+  });
+  out.sort((a, b) => b.pct - a.pct);
+  return out;
+}
+
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, detectDrumHits, hitsToPattern, encodeWav };
+  quantizeNotes, transcribe, detectDrumHits, hitsToPattern, encodeWav,
+  INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments };
 });

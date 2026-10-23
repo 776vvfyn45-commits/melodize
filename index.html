@@ -117,6 +117,8 @@
   .mini{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--sub)}
   .mini input[type=range]{width:74px}
 
+  .toggle.on.fills{background:rgba(236,72,153,.16);border-color:rgba(236,72,153,.5);color:#ff9ccf}
+  select.kitpick{max-width:150px;font-size:.74rem;padding:5px 7px}
   .drumgrid{margin-top:10px;overflow-x:auto;padding-bottom:4px}
   .dg-row{display:flex;align-items:center;gap:6px;margin-bottom:3px}
   .dg-label{width:52px;flex-shrink:0;font-size:.68rem;color:var(--sub);text-transform:uppercase;letter-spacing:.05em}
@@ -126,6 +128,20 @@
   .cell.bar{margin-left:6px}
   .cell.on{background:var(--c,#ec4899);border-color:transparent;box-shadow:0 0 8px var(--c,#ec4899)}
 
+  .adv-q{font-size:.8rem;color:var(--text);font-weight:600;margin-top:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}
+  .chip{padding:7px 13px;border-radius:30px;border:1px solid var(--line);background:transparent;color:var(--sub);font-family:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
+  .chip:hover{border-color:rgba(139,92,246,.5)}
+  .chip.active{background:rgba(139,92,246,.18);border-color:var(--accent);color:var(--text)}
+  .adv-card{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:13px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);margin-bottom:9px}
+  .adv-card.best{border-color:rgba(52,211,153,.5);box-shadow:0 0 0 1px rgba(52,211,153,.25) inset}
+  .adv-card .ai{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;background:rgba(255,255,255,.05)}
+  .adv-card .an{font-weight:600;font-size:.9rem;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .adv-card .badge{font-size:.62rem;padding:2px 8px;border-radius:20px;background:rgba(52,211,153,.18);color:var(--good);text-transform:uppercase;letter-spacing:.06em}
+  .adv-card .ar{font-size:.76rem;color:var(--sub);margin-top:3px;line-height:1.45}
+  .pctbar{height:5px;border-radius:5px;background:rgba(255,255,255,.07);margin-top:7px;overflow:hidden}
+  .pctbar > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+  .adv-btns{display:flex;flex-direction:column;gap:6px}
   .empty{text-align:center;padding:36px 10px;color:var(--sub);font-size:.88rem}
   .empty .big{font-size:2rem;margin-bottom:8px}
 
@@ -187,6 +203,15 @@
           <option value="4" selected>1/16</option>
         </select>
       </div>
+      <div class="field">Drum swing
+        <select id="swingSel">
+          <option value="0">Straight</option>
+          <option value="0.15">Light</option>
+          <option value="0.25">Medium</option>
+          <option value="0.35">Heavy</option>
+        </select>
+      </div>
+      <label class="chk" style="margin-top:14px"><input type="checkbox" id="humanizeChk" checked> Humanize drums</label>
       <div class="spacer"></div>
       <button class="btn small ghost" id="saveBtn">💾 Save project</button>
       <button class="btn small ghost" id="loadBtn">📂 Open project</button>
@@ -201,6 +226,7 @@
       <button class="tab active" data-mode="melody">🎤 Sing / hum a melody</button>
       <button class="tab" data-mode="beatbox">🥁 Beatbox → drums</button>
       <button class="tab" data-mode="drums">🎛 Drum machine</button>
+      <button class="tab" data-mode="advisor">🤖 Ask the advisor</button>
     </div>
 
     <div id="melodySection">
@@ -209,6 +235,11 @@
       <div class="inst-grid" id="instGrid"></div>
       <div class="sub-h">Synths &amp; EDM</div>
       <div class="inst-grid" id="synthGrid"></div>
+    </div>
+
+    <div id="advisorSection" style="display:none">
+      <div class="hint">Not sure which instrument fits? Sing or hum a short phrase (5–15 seconds) with the recorder below. I'll listen, describe what I heard, and rank the instruments that suit it. Tell me the mood and genre and I'll re-rank — then hear your tune on any of them, or add it as a track.</div>
+      <div id="advisorOut"></div>
     </div>
 
     <div id="beatboxSection" style="display:none">
@@ -266,7 +297,8 @@
     Everything runs locally in your browser — your voice is never uploaded.<br>
     Pitch tracking: FFT-accelerated YIN + Viterbi decoding, with auto tuning-correction, key detection and rhythm quantizing (<code>dsp.js</code>).<br>
     Instrument samples from the open <a href="https://github.com/nbrosowsky/tonejs-instruments" target="_blank" rel="noopener">tonejs-instruments</a> library
-    (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC-BY 3.0</a>; sample sources credited in the project's sample-source-info). Synths &amp; drums are generated live with <a href="https://tonejs.github.io/" target="_blank" rel="noopener">Tone.js</a> (MIT).
+    (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC-BY 3.0</a>; sample sources credited in the project's sample-source-info). Synth sounds and the synth drum kits are generated live with <a href="https://tonejs.github.io/" target="_blank" rel="noopener">Tone.js</a> (MIT).<br>
+    Sampled drum kits from the open <a href="https://github.com/oramics/sampled" target="_blank" rel="noopener">oramics/sampled</a> collection: LinnDrum LM-2, TR-505 and CR-78 (public domain), TR-909 Detroit, and Pearl Master Studio by enoe (<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noopener">CC-BY 3.0</a>).
   </footer>
 </div>
 
@@ -396,17 +428,29 @@ function createInstrument(key) {
 /* =====================================================================
    2. DRUM KITS (pure synthesis — no samples)
 ===================================================================== */
-const VOICES = ['kick','snare','clap','hat','openhat','tom','perc'];
-const VOICE_LABEL = { kick:'Kick', snare:'Snare', clap:'Clap', hat:'Hat', openhat:'Open', tom:'Tom', perc:'Perc' };
-const VOICE_COLOR = { kick:'#ec4899', snare:'#8b5cf6', clap:'#a78bfa', hat:'#22d3ee', openhat:'#34d399', tom:'#fbbf24', perc:'#f472b6' };
+const VOICES = ['kick','snare','clap','hat','openhat','tom','perc','ride','crash'];
+const VOICE_LABEL = { kick:'Kick', snare:'Snare', clap:'Clap', hat:'Hat', openhat:'Open', tom:'Tom', perc:'Perc', ride:'Ride', crash:'Crash' };
+const VOICE_COLOR = { kick:'#ec4899', snare:'#8b5cf6', clap:'#a78bfa', hat:'#22d3ee', openhat:'#34d399', tom:'#fbbf24', perc:'#f472b6', ride:'#60a5fa', crash:'#fb923c' };
+const OR = "https://oramics.github.io/sampled/";
 const KITS = {
-  club: { label:"Club (tight)", kickDecay:0.32, kickNote:'C1', pitchDecay:0.045, snareDecay:0.17, hatDecay:0.045 },
-  '808': { label:"808 (deep)", kickDecay:0.9, kickNote:'A0', pitchDecay:0.09, snareDecay:0.22, hatDecay:0.035 },
-  punch: { label:"Punchy (rock / pop)", kickDecay:0.28, kickNote:'D1', pitchDecay:0.03, snareDecay:0.24, hatDecay:0.06 }
+  // synthesized (instant, no download)
+  club:  { type:'synth', label:"Club (synth, tight)", kickDecay:0.32, kickNote:'C1', pitchDecay:0.045, snareDecay:0.17, hatDecay:0.045 },
+  '808': { type:'synth', label:"808 (synth, deep)", kickDecay:0.9, kickNote:'A0', pitchDecay:0.09, snareDecay:0.22, hatDecay:0.035 },
+  punch: { type:'synth', label:"Punchy (synth, rock/pop)", kickDecay:0.28, kickNote:'D1', pitchDecay:0.03, snareDecay:0.24, hatDecay:0.06 },
+  // sampled (downloaded the first time you use the kit)
+  '909':    { type:'sampled', label:"Roland TR-909 (EDM / techno)", base: OR + "DM/TR-909/Detroit/samples/",
+              files:{ kick:'kick.wav', snare:'snare.wav', clap:'clap-1.wav', hat:'hihat-closed.wav', openhat:'hihat-open-1.wav', tom:'tom-l.wav', perc:'rim.wav', ride:'ride.wav', crash:'cymbal.wav' } },
+  linn:     { type:'sampled', label:"LinnDrum LM-2 (80s pop / hip-hop)", base: OR + "DM/LM-2/samples/",
+              files:{ kick:'kick.wav', snare:'snare-m.wav', clap:'clap.wav', hat:'hihat-closed.wav', openhat:'hihat-open.wav', tom:'tom-m.wav', perc:'cowb.wav', ride:'ride.wav', crash:'crash.wav' } },
+  tr505:    { type:'sampled', label:"Roland TR-505 (lo-fi)", base: OR + "DM/TR-505/samples/",
+              files:{ kick:'tr505-kick.wav', snare:'tr505-snare.wav', clap:'tr505-clap.wav', hat:'tr505-hihat-closed.wav', openhat:'tr505-hihat-open.wav', tom:'tr505-tom-m.wav', perc:'tr505-rim.wav', ride:'tr505-ride.wav', crash:'tr505-crash.wav' } },
+  cr78:     { type:'sampled', label:"Roland CR-78 (vintage / latin)", base: OR + "DM/CR-78/samples/",
+              files:{ kick:'kick.wav', snare:'snare.wav', clap:'rim.wav', hat:'hihat.wav', openhat:'hihat-metal.wav', tom:'conga-l.wav', perc:'cowbell.wav', ride:'tamb-long.wav', crash:'cymbal.wav' } },
+  acoustic: { type:'sampled', label:"Studio acoustic kit (Pearl)", base: OR + "DRUMS/pearl-master-studio/samples/",
+              files:{ kick:'kick-01.wav', snare:'snare-01.wav', clap:'snare-03.wav', hat:'hihat-closed.wav', openhat:'hihat-open.wav', tom:'tom-02.wav', perc:'tom-01.wav', ride:'ride-01.wav', crash:'crash-01.wav' } }
 };
 
-function buildKit(kitKey) {
-  const k = KITS[kitKey] || KITS.club;
+function buildSynthKit(k) {
   const out = new Tone.Gain(0.9);
   const nodes = [out];
   const kick = new Tone.MembraneSynth({ pitchDecay:k.pitchDecay, octaves:6, oscillator:{ type:'sine' },
@@ -426,7 +470,13 @@ function buildKit(kitKey) {
   const percBP = new Tone.Filter(1800, 'bandpass').connect(out); percBP.Q.value = 2;
   const perc = new Tone.Synth({ oscillator:{ type:'square' }, envelope:{ attack:0.001, decay:0.11, sustain:0, release:0.02 } }).connect(percBP);
   perc.volume.value = -10;
-  nodes.push(kick, snareHP, snareN, snareB, clapBP, clapN, hatHP, hat, ohat, tom, percBP, perc);
+  const rideBP = new Tone.Filter(9000, 'bandpass').connect(out); rideBP.Q.value = 0.7;
+  const ride = new Tone.NoiseSynth({ noise:{ type:'white' }, envelope:{ attack:0.001, decay:0.55, sustain:0, release:0.2 } }).connect(rideBP);
+  ride.volume.value = -12;
+  const crashHP = new Tone.Filter(4500, 'highpass').connect(out);
+  const crash = new Tone.NoiseSynth({ noise:{ type:'white' }, envelope:{ attack:0.002, decay:1.4, sustain:0, release:0.4 } }).connect(crashHP);
+  crash.volume.value = -9;
+  nodes.push(kick, snareHP, snareN, snareB, clapBP, clapN, hatHP, hat, ohat, tom, percBP, perc, rideBP, ride, crashHP, crash);
 
   function trigger(voice, time, vel) {
     vel = vel == null ? 0.9 : vel;
@@ -434,13 +484,53 @@ function buildKit(kitKey) {
       case 'kick': kick.triggerAttackRelease(k.kickNote, k.kickDecay, time, vel); break;
       case 'snare': snareN.triggerAttackRelease(k.snareDecay, time, vel); snareB.triggerAttackRelease('G3', 0.1, time, vel * 0.7); break;
       case 'clap': clapN.triggerAttackRelease(0.03, time, vel); clapN.triggerAttackRelease(0.03, time + 0.012, vel * 0.9); clapN.triggerAttackRelease(0.16, time + 0.026, vel); break;
-      case 'hat': hat.triggerAttackRelease(k.hatDecay + 0.01, time, vel * 0.8); break;
+      case 'hat': try { ohat.triggerRelease(time); } catch(e){} hat.triggerAttackRelease(k.hatDecay + 0.01, time, vel * 0.8); break;
       case 'openhat': ohat.triggerAttackRelease(0.3, time, vel * 0.8); break;
       case 'tom': tom.triggerAttackRelease('A2', 0.3, time, vel); break;
       case 'perc': perc.triggerAttackRelease('G5', 0.1, time, vel * 0.8); break;
+      case 'ride': ride.triggerAttackRelease(0.5, time, vel * 0.8); break;
+      case 'crash': crash.triggerAttackRelease(1.2, time, vel * 0.9); break;
     }
   }
-  return { out, trigger, dispose: () => nodes.forEach(n => { try { n.dispose(); } catch(e){} }) };
+  return { out, trigger, ready: Promise.resolve(), dispose: () => nodes.forEach(n => { try { n.dispose(); } catch(e){} }) };
+}
+
+function buildSampledKit(def) {
+  const out = new Tone.Gain(0.95);
+  const urls = {};
+  Object.keys(def.files).forEach(v => { urls[v] = def.base + def.files[v]; });
+  let players;
+  const ready = new Promise(resolve => {
+    players = new Tone.Players({ urls, fadeOut: 0.01, onload: resolve });
+    setTimeout(resolve, 20000);                  // never hang the UI if a CDN is slow
+  });
+  players.connect(out);
+  function trigger(voice, time, vel) {
+    try {
+      if (!players.has(voice)) return;
+      if (voice === 'hat' && players.has('openhat')) { try { players.player('openhat').stop(time); } catch(e){} }   // closed hat chokes open hat
+      const p = players.player(voice);
+      p.volume.setValueAtTime(Tone.gainToDb(Math.max(0.05, vel == null ? 0.9 : vel)), time);
+      p.start(time);
+    } catch (e) { /* sample not loaded yet — skip this hit */ }
+  }
+  return { out, trigger, ready, dispose: () => { try { players.dispose(); } catch(e){} try { out.dispose(); } catch(e){} } };
+}
+
+function buildKit(kitKey) {
+  const def = KITS[kitKey] || KITS.club;
+  return def.type === 'sampled' ? buildSampledKit(def) : buildSynthKit(def);
+}
+
+// Make sure a pattern has every voice at the right length (older projects / beatbox results)
+function normPattern(p) {
+  const steps = p.steps || 16;
+  const voices = {};
+  VOICES.forEach(v => {
+    const a = (p.voices && p.voices[v]) || [];
+    voices[v] = Array.from({ length: steps }, (_, i) => a[i] ? 1 : 0);
+  });
+  return { steps, voices };
 }
 
 function pat(str) { return str.replace(/\s/g,'').split('').map(c => c === 'x' ? 1 : 0); }
@@ -450,21 +540,29 @@ function makePattern(spec) {
   return { steps: 16, voices };
 }
 const PRESETS = [
-  { name:"House / EDM 4×4", sub:"124 BPM · four on the floor", bpm:124, kit:'club',
+  { name:"House / EDM 4×4", sub:"124 BPM · TR-909", bpm:124, kit:'909',
     spec:{ kick:'x...x...x...x...', clap:'....x.......x...', hat:'x.x.x.x.x.x.x.x.', openhat:'..x...x...x...x.' } },
-  { name:"Big Room / Festival", sub:"128 BPM · huge drops", bpm:128, kit:'punch',
-    spec:{ kick:'x...x...x...x...', clap:'....x.......x...', hat:'..x...x...x...x.', perc:'......x.......x.' } },
-  { name:"Trap", sub:"140 BPM · rolling hats", bpm:140, kit:'808',
+  { name:"Techno", sub:"130 BPM · TR-909", bpm:130, kit:'909',
+    spec:{ kick:'x...x...x...x...', clap:'....x.......x...', openhat:'..x...x...x...x.', perc:'.x.x.xx..x.x.x.x' } },
+  { name:"Big Room / Festival", sub:"128 BPM · huge drops", bpm:128, kit:'909',
+    spec:{ kick:'x...x...x...x...', clap:'....x.......x...', hat:'..x...x...x...x.', crash:'x...............' } },
+  { name:"Trap", sub:"140 BPM · 808 + rolling hats", bpm:140, kit:'808',
     spec:{ kick:'x.....x...x.....', snare:'........x.......', hat:'xxxxxxxxxxxxxxxx', openhat:'..............x.' } },
-  { name:"Hip-Hop / Boom Bap", sub:"90 BPM", bpm:90, kit:'punch',
+  { name:"Hip-Hop / Boom Bap", sub:"90 BPM · LinnDrum", bpm:90, kit:'linn',
     spec:{ kick:'x.....x...x...x.', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.x.' } },
   { name:"Drum & Bass", sub:"174 BPM", bpm:174, kit:'club',
     spec:{ kick:'x.........x.....', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.x.' } },
-  { name:"Pop / Rock", sub:"100 BPM", bpm:100, kit:'punch',
+  { name:"Pop / Rock", sub:"100 BPM · acoustic kit", bpm:100, kit:'acoustic',
     spec:{ kick:'x.....x...x.....', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.x.' } },
-  { name:"Reggaeton (dembow)", sub:"95 BPM", bpm:95, kit:'club',
+  { name:"Rock (ride groove)", sub:"110 BPM · acoustic kit", bpm:110, kit:'acoustic',
+    spec:{ kick:'x.....x.x.......', snare:'....x.......x...', ride:'x.x.x.x.x.x.x.x.', crash:'x...............' } },
+  { name:"Disco", sub:"118 BPM · LinnDrum", bpm:118, kit:'linn',
+    spec:{ kick:'x...x...x...x...', clap:'....x.......x...', hat:'x.x.x.x.x.x.x.x.', openhat:'..x...x...x...x.' } },
+  { name:"Reggaeton (dembow)", sub:"95 BPM · LinnDrum", bpm:95, kit:'linn',
     spec:{ kick:'x...x...x...x...', snare:'...x..x....x..x.', hat:'x.x.x.x.x.x.x.x.' } },
-  { name:"Lo-fi Chill", sub:"80 BPM", bpm:80, kit:'punch',
+  { name:"Afro-Latin groove", sub:"100 BPM · CR-78", bpm:100, kit:'cr78',
+    spec:{ kick:'x..x..x...x.x...', snare:'....x.......x...', perc:'x.xx.x.xx.x.x.xx', tom:'..x...x...x...x.' } },
+  { name:"Lo-fi Chill", sub:"80 BPM · TR-505", bpm:80, kit:'tr505',
     spec:{ kick:'x.....x...x.....', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.xx' } },
   { name:"Empty pattern", sub:"draw your own", bpm:null, kit:null, spec:{} }
 ];
@@ -472,7 +570,7 @@ const PRESETS = [
 /* =====================================================================
    3. PROJECT STATE + AUDIO ENGINE
 ===================================================================== */
-const S = { bpm:120, bars:8, keyRoot:'auto', scale:'auto', grid:4, mode:'melody', instrument:'piano', kit:'club' };
+const S = { bpm:120, bars:8, keyRoot:'auto', scale:'auto', grid:4, mode:'melody', instrument:'piano', kit:'club', swing:0, humanize:true };
 let masterGain, compressor, limiter, eq, recorder, reverbBus, delayBus;
 let tracks = [], trackIdCounter = 0;
 const trackColors = ['#8b5cf6','#ec4899','#22d3ee','#34d399','#fbbf24','#f472b6','#60a5fa','#fb923c'];
@@ -531,16 +629,31 @@ function buildPart(t) {
     }, ev).start(0);
   } else {
     const stepDur = beat / 4, total = S.bars * 16, ev = [];
+    const FILL = { 12:'snare', 13:'snare', 14:'snare', 15:'tom' };
+    const jitter = () => S.humanize ? (Math.random() - 0.5) * 0.012 : 0;
+    const accent = () => S.humanize ? 0.9 + Math.random() * 0.18 : 1;
     for (let s = 0; s < total; s++) {
-      const ps = s % t.pattern.steps;
-      VOICES.forEach(v => {
-        if (!t.pattern.voices[v][ps]) return;
-        if (v === 'hat' && t.pattern.voices.openhat[ps]) return;     // open hat chokes closed hat
-        ev.push([s * stepDur, { v }]);
-      });
+      const ps = s % t.pattern.steps, bar = Math.floor(s / 16), sib = s % 16;
+      const inFill = t.fills && (bar + 1) % 4 === 0 && sib >= 12;
+      const swingOff = (s % 2 === 1) ? S.swing * stepDur : 0;
+      const at = Math.max(0, s * stepDur + swingOff + jitter());
+      if (inFill) {
+        ev.push([at, { v: FILL[sib], vel: Math.min(1, (0.8 + (sib - 12) * 0.05) * accent()) }]);
+      } else {
+        VOICES.forEach(v => {
+          if (!t.pattern.voices[v][ps]) return;
+          if (v === 'hat' && t.pattern.voices.openhat[ps]) return;          // open hat replaces the closed hat
+          let vel = 0.88;
+          if (v === 'kick') vel = 0.97;
+          else if (v === 'snare' || v === 'clap') vel = 0.92;
+          else if (v === 'hat' || v === 'openhat' || v === 'ride') vel = sib % 4 === 0 ? 0.95 : (sib % 2 === 0 ? 0.78 : 0.6);
+          ev.push([at, { v, vel: Math.min(1, vel * accent()) }]);
+        });
+      }
+      if (t.fills && sib === 0 && bar > 0 && bar % 4 === 0) ev.push([Math.max(0, s * stepDur), { v: 'crash', vel: 0.9 }]);   // crash after each fill
     }
     t.part = new Tone.Part((time, e) => {
-      t.kit.trigger(e.v, time, 0.9);
+      t.kit.trigger(e.v, time, e.vel);
       if (e.v === 'kick' && audible(t)) duckAll(time);
     }, ev).start(0);
   }
@@ -579,6 +692,8 @@ $('#bars').addEventListener('change', e => {
   e.target.value = v; S.bars = v; rebuildAllParts(); renderTracks();
 });
 $('#loopChk').addEventListener('change', updateLoop);
+$('#swingSel').addEventListener('change', e => { S.swing = parseFloat(e.target.value); rebuildAllParts(); });
+$('#humanizeChk').addEventListener('change', e => { S.humanize = e.target.checked; rebuildAllParts(); });
 
 // instrument grids
 const instGrid = $('#instGrid'), synthGrid = $('#synthGrid');
@@ -608,9 +723,18 @@ function renderInstGrids() {
 }
 renderInstGrids();
 
+function fillKitSelect(sel) {
+  const gs = document.createElement('optgroup'); gs.label = 'Synth kits (instant)';
+  const gp = document.createElement('optgroup'); gp.label = 'Sampled kits (downloads once)';
+  Object.keys(KITS).forEach(k => {
+    const o = document.createElement('option'); o.value = k; o.textContent = KITS[k].label;
+    (KITS[k].type === 'sampled' ? gp : gs).appendChild(o);
+  });
+  sel.appendChild(gs); sel.appendChild(gp);
+}
 ['kitSel','kitSelBB'].forEach(id => {
   const sel = $('#' + id);
-  Object.keys(KITS).forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = KITS[k].label; sel.appendChild(o); });
+  fillKitSelect(sel);
   sel.addEventListener('change', e => { S.kit = e.target.value; $('#kitSel').value = S.kit; $('#kitSelBB').value = S.kit; });
 });
 const presetGrid = $('#presetGrid');
@@ -622,7 +746,9 @@ PRESETS.forEach(p => {
     if (p.bpm && !tracks.length) { S.bpm = p.bpm; $('#bpm').value = p.bpm; delayBus.delayTime.value = spb() * 0.75; }
     const kit = p.kit && !tracks.length ? p.kit : S.kit;
     if (p.kit && !tracks.length) { S.kit = kit; $('#kitSel').value = kit; $('#kitSelBB').value = kit; }
-    addDrumTrack(makePattern(p.spec), S.kit);
+    setStatus('loading kit…', 'busy');
+    await addDrumTrack(makePattern(p.spec), S.kit);
+    setStatus('ready', 'ready');
   });
   presetGrid.appendChild(b);
 });
@@ -635,6 +761,7 @@ modeTabs.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', (
   $('#melodySection').style.display = S.mode === 'melody' ? '' : 'none';
   $('#beatboxSection').style.display = S.mode === 'beatbox' ? '' : 'none';
   $('#drumSection').style.display = S.mode === 'drums' ? '' : 'none';
+  $('#advisorSection').style.display = S.mode === 'advisor' ? '' : 'none';
   $('#recWrap').style.display = S.mode === 'drums' ? 'none' : '';
 }));
 
@@ -737,9 +864,25 @@ async function onRecordingStopped() {
         const p = DSP.hitsToPattern(hits, S.bpm, 4);
         const voices = {};
         VOICES.forEach(v => { voices[v] = p.voices[v] || new Array(p.steps).fill(0); });
-        addDrumTrack({ steps: p.steps, voices }, S.kit);
+        await addDrumTrack(normPattern({ steps: p.steps, voices }), S.kit);
         const counts = {}; hits.forEach(h => counts[h.voice] = (counts[h.voice]||0) + 1);
         recInfo.textContent = 'Caught ' + hits.length + ' hits — ' + Object.keys(counts).map(k => counts[k] + ' ' + VOICE_LABEL[k].toLowerCase()).join(', ') + '. Tap the grid to fix any step.';
+      }
+    } else if (S.mode === 'advisor') {
+      const res = DSP.transcribe(data, sr, {
+        bpm: S.bpm, grid: S.grid || 0, scale: S.scale,
+        keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot
+      });
+      if (res.notes.length < 2) {
+        alert("I couldn't hear enough notes to judge — try humming a longer phrase a bit louder, in a quiet room.");
+      } else {
+        adv.take = {
+          secNotes: res.notes,
+          beatNotes: res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel })),
+          key: res.key ? res.key.name : null
+        };
+        renderAdvisor();
+        recInfo.textContent = 'Listened to ' + res.notes.length + ' notes — see my suggestions above.';
       }
     } else {
       const res = DSP.transcribe(data, sr, {
@@ -786,7 +929,10 @@ async function addMelodyTrack(instKey, notes, saved) {
   const t = newTrackBase('melody');
   t.instKey = instKey; t.def = def; t.notes = notes;
   t.octave = saved && typeof saved.octave === 'number' ? saved.octave : (def.octave || 0);
-  if (saved) Object.assign(t, { volume:saved.volume, pan:saved.pan, rev:saved.rev, dly:saved.dly, pump:!!saved.pump, muted:!!saved.muted, solo:!!saved.solo });
+  if (saved) {
+    ['volume','pan','rev','dly'].forEach(k => { if (typeof saved[k] === 'number') t[k] = saved[k]; });
+    t.pump = !!saved.pump; t.muted = !!saved.muted; t.solo = !!saved.solo;
+  }
   t.inst = await createInstrument(instKey);
   t.inst.out.connect(t.chain.duck);
   applyTrackFx(t);
@@ -795,15 +941,46 @@ async function addMelodyTrack(instKey, notes, saved) {
   rebuildAllParts(); applyMix(); renderTracks();
   setStatus('ready', 'ready');
 }
-function addDrumTrack(pattern, kitKey, saved) {
+async function addDrumTrack(pattern, kitKey, saved) {
   const t = newTrackBase('drums');
-  t.kitKey = kitKey || 'club'; t.pattern = pattern; t.kit = buildKit(t.kitKey);
+  t.kitKey = KITS[kitKey] ? kitKey : 'club'; t.pattern = normPattern(pattern); t.fills = !!(saved && saved.fills);
+  t.kit = buildKit(t.kitKey);
   t.kit.out.connect(t.chain.duck);
   if (saved) Object.assign(t, { volume:saved.volume, pan:saved.pan, rev:saved.rev, dly:saved.dly, muted:!!saved.muted, solo:!!saved.solo });
   applyTrackFx(t);
   tracks.push(t);
   rebuildAllParts(); applyMix(); renderTracks();
+  await t.kit.ready;                      // sampled kits finish downloading in the background
   return t;
+}
+async function changeKit(t, kitKey) {
+  setStatus('loading ' + KITS[kitKey].label + '…', 'busy');
+  const old = t.kit;
+  const kit = buildKit(kitKey);
+  kit.out.connect(t.chain.duck);
+  t.kit = kit; t.kitKey = kitKey;
+  await kit.ready;
+  try { old.dispose(); } catch(e){}
+  renderTracks();
+  setStatus('ready', 'ready');
+}
+// Re-rolls the last bar of a 2-bar pattern with small, musical changes (ghost notes, extra kick, dropped hats)
+function makeVariation(t) {
+  const P = t.pattern;
+  if (P.steps < 32) {
+    VOICES.forEach(v => { P.voices[v] = P.voices[v].concat(P.voices[v].slice()); });
+    P.steps *= 2;
+  }
+  const off = P.steps - 16, V = P.voices, r = Math.random;
+  // reset the last bar to the first bar before mutating, so repeated clicks give fresh variations (not drift)
+  VOICES.forEach(v => { for (let i = 0; i < 16; i++) V[v][off + i] = V[v][i]; });
+  const free = i => !V.snare[off + i] && !V.clap[off + i];
+  [3, 6, 10, 11, 14].forEach(i => { if (free(i) && r() < 0.28 && V.kick[0] === 1) V.kick[off + i] = 1; });
+  [1, 3, 5, 7, 9, 11, 13, 15, 2, 6, 10, 14].forEach(i => { if (V.hat[off + i] && r() < 0.15) V.hat[off + i] = 0; });
+  if (V.hat.some(Boolean) && r() < 0.5) { V.openhat[off + 14] = 1; V.hat[off + 14] = 0; }
+  if ((V.snare.some(Boolean) || V.clap.some(Boolean)) && r() < 0.5) (V.snare.some(Boolean) ? V.snare : V.clap)[off + (r() < 0.5 ? 7 : 15)] = 1;
+  if (r() < 0.5) { const pick = [2, 5, 9, 13]; V.perc[off + pick[Math.floor(r() * pick.length)]] = 1; }
+  buildPart(t); renderTracks();
 }
 function removeTrack(id) {
   const t = tracks.find(x => x.id === id); if (!t) return;
@@ -842,7 +1019,7 @@ function renderTracks() {
     const el = document.createElement('div');
     el.className = 'track';
     const isDrum = t.type === 'drums';
-    const title = isDrum ? 'Drums <small>· ' + KITS[t.kitKey].label + ' · ' + (t.pattern.steps / 16) + ' bar loop</small>'
+    const title = isDrum ? 'Drums <small>· ' + (t.pattern.steps / 16) + ' bar loop</small>'
                          : t.def.label + ' <small>· ' + t.notes.length + ' notes</small>';
     const emoji = isDrum ? '🥁' : t.def.emoji;
     el.innerHTML =
@@ -862,7 +1039,10 @@ function renderTracks() {
         (isDrum ? '' :
           '<button class="toggle pump' + (t.pump ? ' on' : '') + '" title="Duck on every kick (sidechain pump)">Pump</button>' +
           '<span class="mini"><button class="toggle oct-dn" title="Octave down">−8va</button> <span class="octlbl">' + (t.octave > 0 ? '+' : '') + t.octave + '</span> <button class="toggle oct-up" title="Octave up">+8va</button></span>') +
-        (isDrum ? '<button class="btn small ghost clr">Clear</button>' : '') +
+        (isDrum ? '<select class="kitpick" title="Drum kit"></select>' +
+          '<button class="toggle fills' + (t.fills ? ' on' : '') + '" title="Add a snare/tom fill and crash every 4th bar">Fills</button>' +
+          '<button class="btn small ghost vari" title="Create a variation of the last bar">✨ Variation</button>' +
+          '<button class="btn small ghost clr">Clear</button>' : '') +
         '<button class="btn small icon del" title="Delete">🗑</button>' +
       '</div>';
 
@@ -884,6 +1064,10 @@ function renderTracks() {
       q('.oct-dn').addEventListener('click', () => setOct(-1));
       q('.oct-up').addEventListener('click', () => setOct(1));
     } else {
+      const kp = q('.kitpick'); fillKitSelect(kp); kp.value = t.kitKey;
+      kp.addEventListener('change', e => changeKit(t, e.target.value));
+      q('.fills').addEventListener('click', e => { t.fills = !t.fills; e.target.classList.toggle('on', t.fills); buildPart(t); });
+      q('.vari').addEventListener('click', () => makeVariation(t));
       q('.clr').addEventListener('click', () => { VOICES.forEach(v => t.pattern.voices[v].fill(0)); buildPart(t); renderTracks(); });
     }
     trackList.appendChild(el);
@@ -910,6 +1094,68 @@ function buildDrumGrid(host, t) {
       cells.appendChild(c);
     }
     row.appendChild(cells); host.appendChild(row);
+  });
+}
+
+/* =====================================================================
+   6b. INSTRUMENT ADVISOR — "which instrument is this tune for?"
+   Listens to the melody, describes it, ranks instruments, re-ranks on mood/genre.
+===================================================================== */
+const MOODS = [['happy','😊 Happy'], ['sad','😢 Sad'], ['energetic','⚡ Energetic'], ['calm','🌙 Calm'], ['dark','🖤 Dark'], ['epic','🏔 Epic']];
+const GENRES = [['pop','Pop'], ['edm','EDM'], ['rock','Rock'], ['hiphop','Hip-hop'], ['classical','Classical'], ['folk','Folk'], ['jazz','Jazz'], ['cinematic','Cinematic']];
+const adv = { take: null, mood: null, genre: null };
+
+async function auditionMelody(key, notes, oct) {
+  await Tone.start();
+  setStatus('loading ' + ALL_INST[key].label + '…', 'busy');
+  try {
+    if (!previewCache[key]) { previewCache[key] = await createInstrument(key); previewCache[key].out.connect(masterGain); }
+    const p = previewCache[key], t0 = Tone.now() + 0.1, beat = spb();
+    notes.forEach(n => p.play(DSP.midiToNoteName(clampMidi(n.midi + 12 * oct)), Math.max(0.05, n.durB * beat * 0.98), t0 + n.startB * beat, n.vel || 0.85));
+  } catch (e) { console.error(e); }
+  setStatus('ready', 'ready');
+}
+
+function chipRow(question, list, kind) {
+  const wrap = document.createElement('div');
+  const q = document.createElement('div'); q.className = 'adv-q'; q.textContent = question; wrap.appendChild(q);
+  const row = document.createElement('div'); row.className = 'chips';
+  list.forEach(([val, label]) => {
+    const c = document.createElement('button');
+    c.className = 'chip' + (adv[kind] === val ? ' active' : ''); c.textContent = label;
+    c.addEventListener('click', () => { adv[kind] = adv[kind] === val ? null : val; renderAdvisor(); });
+    row.appendChild(c);
+  });
+  wrap.appendChild(row);
+  return wrap;
+}
+
+function renderAdvisor() {
+  const host = $('#advisorOut'); host.innerHTML = '';
+  if (!adv.take) return;
+  const f = DSP.melodyFeatures(adv.take.secNotes);
+  const intro = document.createElement('div'); intro.className = 'tip';
+  intro.textContent = '🤖 I heard ' + f.count + ' notes — ' + DSP.describeMelody(f) + (adv.take.key ? '. The key looks like ' + adv.take.key + '.' : '.');
+  host.appendChild(intro);
+  host.appendChild(chipRow('What mood are you going for?', MOODS, 'mood'));
+  host.appendChild(chipRow('Any genre in mind?', GENRES, 'genre'));
+  const ranked = DSP.recommendInstruments(adv.take.secNotes, { mood: adv.mood, genre: adv.genre }).slice(0, 5);
+  ranked.forEach((r, i) => {
+    const def = ALL_INST[r.key]; if (!def) return;
+    const card = document.createElement('div'); card.className = 'adv-card' + (i === 0 ? ' best' : '');
+    card.innerHTML =
+      '<div class="ai">' + def.emoji + '</div>' +
+      '<div><div class="an">' + def.label + ' <span class="pc" style="color:var(--sub);font-weight:400;font-size:.76rem">' + r.pct + '% match</span>' + (i === 0 ? ' <span class="badge">Best match</span>' : '') + '</div>' +
+        '<div class="ar"></div><div class="pctbar"><div style="width:' + r.pct + '%"></div></div></div>' +
+      '<div class="adv-btns"><button class="btn small hear">▶ Hear my tune</button><button class="btn small primary use">＋ Add as track</button></div>';
+    card.querySelector('.ar').textContent = r.reason;
+    card.querySelector('.hear').addEventListener('click', () => auditionMelody(r.key, adv.take.beatNotes, r.octave));
+    card.querySelector('.use').addEventListener('click', async () => {
+      S.instrument = r.key; renderInstGrids();
+      await addMelodyTrack(r.key, adv.take.beatNotes.map(n => Object.assign({}, n)), { octave: r.octave });
+      recInfo.textContent = 'Added your tune on ' + def.label + '.';
+    });
+    host.appendChild(card);
   });
 }
 
@@ -983,12 +1229,12 @@ $('#exportBtn').addEventListener('click', async () => {
    8. SAVE / OPEN PROJECT
 ===================================================================== */
 $('#saveBtn').addEventListener('click', () => {
-  const data = { app:'melodize', version:2, settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid },
+  const data = { app:'melodize', version:2, settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize },
     tracks: tracks.map(t => {
       const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo };
       return t.type === 'melody'
         ? Object.assign(base, { instKey:t.instKey, notes:t.notes, pump:t.pump, octave:t.octave })
-        : Object.assign(base, { kitKey:t.kitKey, pattern:t.pattern });
+        : Object.assign(base, { kitKey:t.kitKey, pattern:t.pattern, fills:!!t.fills });
     }) };
   download(new Blob([JSON.stringify(data)], { type:'application/json' }), 'melodize-project.json');
 });
@@ -1003,11 +1249,13 @@ $('#loadFile').addEventListener('change', async e => {
     tracks.slice().forEach(t => removeTrack(t.id));
     const s = data.settings || {};
     S.bpm = s.bpm || 120; S.bars = s.bars || 8; S.keyRoot = s.keyRoot == null ? 'auto' : s.keyRoot; S.scale = s.scale || 'auto'; S.grid = s.grid == null ? 4 : s.grid;
+    S.swing = s.swing || 0; S.humanize = s.humanize !== false;
     $('#bpm').value = S.bpm; $('#bars').value = S.bars; $('#scaleSel').value = S.scale; $('#gridSel').value = String(S.grid);
+    $('#swingSel').value = String(S.swing); $('#humanizeChk').checked = S.humanize;
     keySel.value = S.keyRoot === 'auto' ? 'auto' : String(S.keyRoot);
     for (const t of data.tracks || []) {
       if (t.type === 'melody' && ALL_INST[t.instKey]) await addMelodyTrack(t.instKey, t.notes, t);
-      else if (t.type === 'drums') addDrumTrack(t.pattern, KITS[t.kitKey] ? t.kitKey : 'club', t);
+      else if (t.type === 'drums') await addDrumTrack(t.pattern, KITS[t.kitKey] ? t.kitKey : 'club', t);
     }
     rebuildAllParts(); renderTracks();
   } catch (err) { console.error(err); alert('Could not open that file — is it a Melodize project (.json)?'); }
