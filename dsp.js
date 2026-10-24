@@ -397,6 +397,80 @@ function quantizeNotes(notes, bpm, stepsPerBeat) {
   return clean;
 }
 
+/* ---------- piano-roll editing operations (pure functions on [{midi,startB,durB,vel}]) ---------- */
+const rollOps = {
+  snap(b, step) { return step ? Math.round(b / step) * step : b; },
+  hit(notes, beat, midi, edge) {                 // topmost note under the pointer; zone 'end' = right-edge resize handle
+    for (let i = notes.length - 1; i >= 0; i--) {
+      const n = notes[i];
+      if (n.midi === midi && beat >= n.startB - 1e-6 && beat <= n.startB + n.durB + 1e-6)
+        return { i, zone: (n.durB > edge * 1.6 && beat > n.startB + n.durB - edge) ? 'end' : 'body' };
+    }
+    return null;
+  },
+  add(notes, startB, midi, durB, vel) { return notes.concat([{ midi, startB: Math.max(0, startB), durB: Math.max(0.0625, durB), vel: vel || 0.85 }]); },
+  move(notes, i, orig, dBeat, dMidi, step, lo, hi) {
+    const out = notes.slice();
+    out[i] = Object.assign({}, orig, {
+      startB: Math.max(0, rollOps.snap(orig.startB + dBeat, step)),
+      midi: Math.max(lo, Math.min(hi, orig.midi + dMidi))
+    });
+    return out;
+  },
+  resize(notes, i, orig, newDur, step) {
+    const out = notes.slice();
+    let d = step ? Math.max(step, rollOps.snap(newDur, step)) : Math.max(0.0625, newDur);
+    out[i] = Object.assign({}, orig, { durB: d });
+    return out;
+  },
+  remove(notes, i) { return notes.filter((_, k) => k !== i); },
+  duplicate(notes, i) { const n = notes[i]; return notes.concat([Object.assign({}, n, { startB: n.startB + n.durB })]); },
+  transpose(notes, semis, i, lo, hi) {
+    return notes.map((n, k) => (i < 0 || k === i) ? Object.assign({}, n, { midi: Math.max(lo, Math.min(hi, n.midi + semis)) }) : n);
+  },
+  quantize(notes, step, i) {
+    if (!step) return notes.slice();
+    return notes.map((n, k) => {
+      if (i >= 0 && k !== i) return n;
+      const s = Math.round(n.startB / step) * step, e = Math.max(s + step, Math.round((n.startB + n.durB) / step) * step);
+      return Object.assign({}, n, { startB: s, durB: e - s });
+    });
+  }
+};
+
+/* ---------- MIDI file export (format 1): one tempo track + one track per melody / drum track ---------- */
+function encodeMidi(bpm, trackDefs) {
+  const PPQ = 480, out = [];
+  const w16 = v => [(v >> 8) & 255, v & 255], w32 = v => [(v >>> 24) & 255, (v >>> 16) & 255, (v >>> 8) & 255, v & 255];
+  const vlq = v => { v = Math.max(0, Math.round(v)); const b = [v & 127]; while ((v >>= 7) > 0) b.unshift((v & 127) | 128); return b; };
+  const str = s => Array.from(s).map(c => c.charCodeAt(0) & 127);
+  const chunk = (id, bytes) => str(id).concat(w32(bytes.length), bytes);
+  const mpq = Math.round(60000000 / bpm);
+  const tempo = [0, 0xFF, 0x51, 3, (mpq >> 16) & 255, (mpq >> 8) & 255, mpq & 255, 0, 0xFF, 0x58, 4, 4, 2, 24, 8, 0, 0xFF, 0x2F, 0];
+  const chunks = [chunk('MTrk', tempo)];
+  let mc = 0;
+  trackDefs.forEach(td => {
+    const ch = td.drums ? 9 : (mc++ % 9);
+    const ev = [];
+    const name = str(td.name || 'Track'); ev.push({ t: 0, b: [0xFF, 0x03, name.length].concat(name), o: 0 });
+    if (!td.drums) ev.push({ t: 0, b: [0xC0 | ch, td.program || 0], o: 0 });
+    td.notes.forEach(n => {
+      const on = Math.round(n.startB * PPQ), off = Math.max(on + 10, Math.round((n.startB + n.durB) * PPQ));
+      const m = Math.max(0, Math.min(127, Math.round(n.midi))), v = Math.max(1, Math.min(127, Math.round((n.vel || 0.85) * 127)));
+      ev.push({ t: on, b: [0x90 | ch, m, v], o: 1 });
+      ev.push({ t: off, b: [0x80 | ch, m, 0], o: 0 });
+    });
+    ev.sort((a, b) => a.t - b.t || a.o - b.o);
+    const bytes = []; let last = 0;
+    ev.forEach(e => { bytes.push.apply(bytes, vlq(e.t - last)); bytes.push.apply(bytes, e.b); last = e.t; });
+    bytes.push(0, 0xFF, 0x2F, 0);
+    chunks.push(chunk('MTrk', bytes));
+  });
+  const head = chunk('MThd', w16(1).concat(w16(chunks.length), w16(PPQ)));
+  const all = head.concat.apply(head, chunks);
+  return new Uint8Array(all);
+}
+
 /* ---------- loudness: bring a finished mix to a consistent level without clipping ---------- */
 function normalizeLoudness(chans, targetRmsDb, peakCeilDb) {
   let sum = 0, n = 0, peak = 0;
@@ -872,6 +946,6 @@ function extraChat(n, raw, r) {
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, detectDrumHits, hitsToPattern, encodeWav,
+  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, detectDrumHits, hitsToPattern, encodeWav,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });
