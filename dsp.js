@@ -471,6 +471,22 @@ function encodeMidi(bpm, trackDefs) {
   return new Uint8Array(all);
 }
 
+/* ---------- read back a 16-bit PCM WAV written by encodeWav (mono or stereo -> mono) ---------- */
+function decodeWav(arrayBuffer) {
+  const v = new DataView(arrayBuffer);
+  const nCh = v.getUint16(22, true), sr = v.getUint32(24, true), bits = v.getUint16(34, true);
+  if (bits !== 16) throw new Error('unsupported wav');
+  let off = 12, dataOff = 0, dataLen = 0;
+  while (off + 8 <= v.byteLength) {
+    const id = String.fromCharCode(v.getUint8(off), v.getUint8(off + 1), v.getUint8(off + 2), v.getUint8(off + 3)), sz = v.getUint32(off + 4, true);
+    if (id === 'data') { dataOff = off + 8; dataLen = Math.min(sz, v.byteLength - dataOff); break; }
+    off += 8 + sz + (sz & 1);
+  }
+  const frames = Math.floor(dataLen / 2 / nCh), out = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) { let s = 0; for (let c = 0; c < nCh; c++) s += v.getInt16(dataOff + (i * nCh + c) * 2, true) / 32768; out[i] = s / nCh; }
+  return { data: out, sr };
+}
+
 /* ---------- loudness: bring a finished mix to a consistent level without clipping ---------- */
 function normalizeLoudness(chans, targetRmsDb, peakCeilDb) {
   let sum = 0, n = 0, peak = 0;
@@ -575,7 +591,8 @@ function transcribe(data, sampleRate, opts) {
     tempoEst = estimateTempo(segs.map(n => n.start));
     if (tempoEst) opts = Object.assign({}, opts, { bpm: tempoEst.bpm });
   }
-  if (opts.trimLead && segs.length) { const t0 = segs[0].start; segs.forEach(n => { n.start -= t0; }); }
+  let leadSec = 0;
+  if (opts.trimLead && segs.length) { const t0 = segs[0].start; leadSec = t0; segs.forEach(n => { n.start -= t0; }); }
   if (opts.latency) segs.forEach(n => { n.start = Math.max(0, n.start - opts.latency); });
   let key = segs.length ? detectKey(segs) : null;
   let root = null;
@@ -602,7 +619,7 @@ function transcribe(data, sampleRate, opts) {
   }));
   // merge consecutive identical pitches that touch (tiny gaps) only when no articulation dip split them
   if (opts.bpm && opts.grid) notes = quantizeNotes(notes, opts.bpm, opts.grid);
-  return { notes, key, tuningCents: Math.round(tuning * 100), gate: tracked.gate, tempo: tempoEst, bpm: opts.bpm || null };
+  return { notes, key, tuningCents: Math.round(tuning * 100), gate: tracked.gate, tempo: tempoEst, bpm: opts.bpm || null, leadSec };
 }
 
 /* ---------- beatbox: detect drum hits & classify (kick / snare / hat / open hat) ---------- */
@@ -898,7 +915,7 @@ function lev(a, b) {
 }
 const UNSUPPORTED = [
   { id: 'lyrics', re: / (lyrics?|write (me )?a song about|words to (the|my) song|rap verse) /, say: "I can't write lyrics or sing words — I turn your voice into instruments and beats. But I can build the music under your tune, and you can add words on top." },
-  { id: 'vocals', re: / (autotune|auto tune|keep my (own )?voice|my real voice|record (my )?vocals?|backing vocals?|harmon(y|ies)|choir) /, say: "Melodize turns your singing into instrument notes rather than keeping the raw vocal. For a harmony feel, layer the same tune on two instruments (like strings and a pad) — I can do that now." },
+  { id: 'vocals', re: / (autotune|auto tune|pitch correct(ion)?|backing vocals?|harmon(y|ies)|choir) /, say: "Pitch correction, harmonies and choirs aren't built in. For a harmony feel you can layer the same tune on two instruments (like strings and a pad) — I can do that now. Your raw voice can be kept as a track with “keep my real voice”." },
   { id: 'mp3', re: / (mp3|midi file|export midi|stems|flac|aac) /, say: "Right now I export WAV files (studio quality), and you can convert them to MP3 in any free converter. MIDI and stem export aren't in yet." },
   { id: 'share', re: / (upload|share|post|publish|spotify|youtube|instagram|tiktok|soundcloud|whatsapp) /, say: "I can't post online for you, but export gives you a WAV you can upload anywhere." },
   { id: 'import', re: / (import|upload|load) (a |my |an )?(song|file|loop|sample|audio|track|mp3|wav) /, say: "Importing your own audio files isn't supported yet — right now everything starts from your voice, a beat or the built-in sounds." }
@@ -946,6 +963,6 @@ function extraChat(n, raw, r) {
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, detectDrumHits, hitsToPattern, encodeWav,
+  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, detectDrumHits, hitsToPattern, encodeWav,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });

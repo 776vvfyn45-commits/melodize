@@ -315,6 +315,7 @@
       <button class="tab active" data-mode="melody">🎤 Sing / hum a melody</button>
       <button class="tab" data-mode="beatbox">🥁 Beatbox → drums</button>
       <button class="tab" data-mode="drums">🎛 Drum machine</button>
+      <button class="tab" data-mode="vocal">🎙 Real voice</button>
       <button class="tab" data-mode="advisor">🤖 Ask the advisor</button>
     </div>
 
@@ -324,6 +325,10 @@
       <div class="inst-grid" id="instGrid"></div>
       <div class="sub-h">Synths &amp; EDM</div>
       <div class="inst-grid" id="synthGrid"></div>
+    </div>
+
+    <div id="vocalSection" style="display:none">
+      <div class="hint">Record your own voice as an audio track (it is NOT turned into notes). Turn on the count-in and play-along, wear headphones, and sing over your beat. Pitch correction is not included.</div>
     </div>
 
     <div id="beatboxSection" style="display:none">
@@ -693,12 +698,13 @@ function makeTrackChain() {
 /* ----- auto-mix: sensible levels, low-cut, stereo spread and reverb by role ----- */
 const BASSY = ['bass','sub','wobble','acid'], LOWISH = ['cello','trombone','horn','organ','harmonium'], PADDY = ['pad','organ','harmonium','cello','harp'];
 const TRIM = { supersaw: 0.62, wobble: 0.6, acid: 0.7, chip: 0.62, sub: 0.9, pluck: 0.85, pad: 0.8, bell: 0.85, eguitar: 0.8, trumpet: 0.75, sax: 0.8, xylo: 0.8 };
-function hpFor(t) { return t.type === 'drums' ? 28 : BASSY.indexOf(t.instKey) !== -1 ? 30 : LOWISH.indexOf(t.instKey) !== -1 ? 60 : 110; }
+function hpFor(t) { return t.type === 'audio' ? 80 : t.type === 'drums' ? 28 : BASSY.indexOf(t.instKey) !== -1 ? 30 : LOWISH.indexOf(t.instKey) !== -1 ? 60 : 110; }
 function autoMix() {
   let leadN = 0, padN = 0;
   tracks.forEach(t => {
     t.chain.hp.frequency.value = hpFor(t);
-    if (t.type === 'drums') { t.volume = 0.8; t.pan = 0; t.rev = 0.05; t.dly = 0; }
+    if (t.type === 'audio') { t.volume = 0.9; t.pan = 0; t.rev = 0.2; t.dly = 0.04; }
+    else if (t.type === 'drums') { t.volume = 0.8; t.pan = 0; t.rev = 0.05; t.dly = 0; }
     else if (BASSY.indexOf(t.instKey) !== -1) { t.volume = 0.8 * (TRIM[t.instKey] || 1); t.pan = 0; t.rev = 0; t.dly = 0; }
     else if (PADDY.indexOf(t.instKey) !== -1) { t.volume = 0.52 * (TRIM[t.instKey] || 1); t.pan = (padN++ % 2 ? 0.3 : -0.3); t.rev = 0.3; t.dly = 0; }
     else { t.volume = 0.76 * (TRIM[t.instKey] || 1); t.pan = leadN === 0 ? 0 : (leadN % 2 ? 0.28 : -0.28); leadN++; t.rev = 0.14; t.dly = ['pluck', 'bell', 'chip', 'supersaw', 'xylo'].indexOf(t.instKey) !== -1 ? 0.07 : 0.03; }
@@ -711,6 +717,7 @@ function autoArrange() {
   S.bars = Math.max(16, S.bars); $('#bars').value = S.bars;
   const hasLead = tracks.some(t => t.type === 'melody' && BASSY.indexOf(t.instKey) === -1);
   tracks.forEach(t => {
+    if (t.type === 'audio') return;
     t.endBar = 0; t.repeat = t.type === 'melody';
     t.startBar = (hasLead && (t.type === 'drums' || BASSY.indexOf(t.instKey) !== -1)) ? 4 : 0;   // 4-bar intro: lead on its own, then drums + bass drop in
   });
@@ -747,6 +754,11 @@ function melodyEvents(t) {
   return out;
 }
 function buildPart(t) {
+  if (t.type === 'audio') {
+    try { t.player.unsync(); } catch (e) {}
+    try { t.player.sync().start((t.startBar || 0) * 4 * spb()); } catch (e) { console.error(e); }
+    return;
+  }
   if (t.part) { try { t.part.dispose(); } catch(e){} t.part = null; }
   const beat = spb();
   if (t.type === 'melody') {
@@ -891,6 +903,7 @@ modeTabs.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', (
   $('#melodySection').style.display = S.mode === 'melody' ? '' : 'none';
   $('#beatboxSection').style.display = S.mode === 'beatbox' ? '' : 'none';
   $('#drumSection').style.display = S.mode === 'drums' ? '' : 'none';
+  $('#vocalSection').style.display = S.mode === 'vocal' ? '' : 'none';
   $('#recWrap').style.display = S.mode === 'drums' ? 'none' : '';
 }));
 
@@ -1015,7 +1028,17 @@ async function onRecordingStopped(data, sr) {
   analyzingEl.style.display = 'flex';
   await sleep(40);                       // let the spinner paint before the heavy DSP
   try {
-    if (S.mode === 'beatbox') {
+    if (S.mode === 'vocal') {
+      const ctxV = Tone.context.rawContext;
+      const lat = recMeta.playAlong ? Math.min(0.25, (ctxV.baseLatency || 0) + (ctxV.outputLatency || 0)) : 0;
+      let pk = 0; for (let i = 0; i < data.length; i += 7) { const a = Math.abs(data[i]); if (a > pk) pk = a; }
+      if (pk < 0.01) { alert("I couldn't hear your voice — check the microphone and sing a little louder."); }
+      else {
+        const cut = Math.min(data.length - 1, Math.round(lat * sr));
+        await addAudioTrack(data.slice(cut), sr, { startBar: 0 });
+        recInfo.textContent = 'Voice recorded (' + (data.length / sr).toFixed(1) + ' s). Drag the Bars boxes to move it, or use Auto-mix.';
+      }
+    } else if (S.mode === 'beatbox') {
       const hits = DSP.detectDrumHits(data, sr);
       if (!hits.length) { alert("Didn't catch any beats — try beatboxing a bit louder and closer to the mic."); }
       else {
@@ -1066,7 +1089,8 @@ function applyTrackFx(t) {
 }
 function growBarsToFit() {
   let endB = 0;
-  tracks.forEach(t => { if (t.type === 'melody' && !t.repeat && !t.endBar) t.notes.forEach(n => { endB = Math.max(endB, (t.startBar || 0) * 4 + n.startB + n.durB); }); else endB = Math.max(endB, 0); });
+  tracks.forEach(t => { if (t.type === 'audio') endB = Math.max(endB, (t.startBar || 0) * 4 + t.durSec / spb());
+    else if (t.type === 'melody' && !t.repeat && !t.endBar) t.notes.forEach(n => { endB = Math.max(endB, (t.startBar || 0) * 4 + n.startB + n.durB); }); else endB = Math.max(endB, 0); });
   const need = Math.ceil(endB / 4);
   if (need > S.bars) { S.bars = Math.min(64, need); $('#bars').value = S.bars; }
 }
@@ -1102,6 +1126,43 @@ async function addDrumTrack(pattern, kitKey, saved) {
   await t.kit.ready;                      // sampled kits finish downloading in the background
   return t;
 }
+/* ----- real voice (audio) tracks ----- */
+async function addAudioTrack(data, sr, saved) {
+  const t = newTrackBase('audio');
+  t.data = data; t.sr = sr; t.durSec = data.length / sr;
+  const ab = Tone.context.rawContext.createBuffer(1, data.length, sr); ab.copyToChannel(data, 0);
+  t.player = new Tone.Player(ab);
+  t.comp = new Tone.Compressor({ threshold: -18, ratio: 3, attack: 0.01, release: 0.2 });
+  t.player.connect(t.comp); t.comp.connect(t.chain.duck);
+  t.chain.hp.frequency.value = 80;
+  t.volume = 0.9; t.rev = 0.18;
+  if (saved) {
+    ['volume','pan','rev','dly'].forEach(k => { if (typeof saved[k] === 'number') t[k] = saved[k]; });
+    t.muted = !!saved.muted; t.solo = !!saved.solo; t.startBar = saved.startBar | 0;
+  }
+  applyTrackFx(t);
+  tracks.push(t);
+  growBarsToFit(); rebuildAllParts(); applyMix(); renderTracks();
+  return t;
+}
+function drawWave(canvas, t) {
+  const ctx = canvas.getContext('2d'), w = canvas.width = canvas.clientWidth || 300, h = canvas.height = 34;
+  ctx.clearRect(0, 0, w, h);
+  const total = S.bars * 4 * spb(), x0 = (t.startBar || 0) * 4 * spb() / total * w, xw = Math.max(2, Math.min(w - x0, t.durSec / total * w));
+  ctx.fillStyle = 'rgba(255,255,255,.07)';
+  for (let b = 0; b < S.bars; b++) ctx.fillRect(Math.round(b / S.bars * w), 0, 1, h);
+  ctx.fillStyle = t.color; ctx.globalAlpha = 0.9;
+  const per = t.data.length * (xw / (t.durSec / total * w)) / xw;
+  for (let x = 0; x < xw; x++) {
+    const a = Math.floor(x * t.data.length / (t.durSec / total * w)), b = Math.min(t.data.length, Math.floor((x + 1) * t.data.length / (t.durSec / total * w)) + 1);
+    let m = 0; for (let i = a; i < b; i += Math.max(1, Math.floor((b - a) / 12))) { const v = Math.abs(t.data[i]); if (v > m) m = v; }
+    const hh = Math.max(1, Math.min(1, m * 2.2) * (h - 4));
+    ctx.fillRect(x0 + x, (h - hh) / 2, 1, hh);
+  }
+  ctx.globalAlpha = 1;
+}
+function u8ToB64(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); }
+function b64ToBuf(b64) { const bin = atob(b64), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8.buffer; }
 async function changeKit(t, kitKey) {
   setStatus('loading ' + KITS[kitKey].label + '…', 'busy');
   const old = t.kit;
@@ -1136,6 +1197,7 @@ function removeTrack(id) {
   try { t.part && t.part.dispose(); } catch(e){}
   try { t.inst && t.inst.dispose(); } catch(e){}
   try { t.kit && t.kit.dispose(); } catch(e){}
+  try { t.player && t.player.dispose(); t.comp && t.comp.dispose(); } catch(e){}
   Object.values(t.chain).forEach(n => { try { n.dispose(); } catch(e){} });
   tracks = tracks.filter(x => x.id !== id);
   applyMix(); renderTracks();
@@ -1171,7 +1233,7 @@ function drawTimeline() {
   for (let b = 0; b < S.bars; b++) { g.fillStyle = b % 4 === 0 ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.07)'; g.fillRect(Math.round(b * bw), 0, 1, H); if (b % 4 === 0) { g.fillStyle = 'rgba(255,255,255,.5)'; g.font = '9px sans-serif'; g.fillText(String(b + 1), b * bw + 3, 9); } }
   tracks.forEach((t, i) => {
     const sb = t.startBar || 0;
-    const eb = t.endBar ? t.endBar : (t.type === 'drums' || t.repeat ? S.bars : Math.min(S.bars, sb + clipBars(t)));
+    const eb = t.type === 'audio' ? Math.min(S.bars, sb + Math.ceil(t.durSec / (4 * spb()))) : t.endBar ? t.endBar : (t.type === 'drums' || t.repeat ? S.bars : Math.min(S.bars, sb + clipBars(t)));
     g.globalAlpha = audible(t) ? 0.9 : 0.35; g.fillStyle = t.color;
     g.fillRect(sb * bw + 1, 12 + i * rowH, Math.max(2, (eb - sb) * bw - 2), rowH - 3); g.globalAlpha = 1;
   });
@@ -1182,10 +1244,11 @@ function renderTracks() {
   tracks.forEach(t => {
     const el = document.createElement('div');
     el.className = 'track';
-    const isDrum = t.type === 'drums';
+    const isDrum = t.type === 'drums', isAudio = t.type === 'audio', isMel = t.type === 'melody';
     const title = isDrum ? 'Drums <small>· ' + (t.pattern.steps / 16) + ' bar loop</small>'
-                         : t.def.label + ' <small>· ' + t.notes.length + ' notes</small>';
-    const emoji = isDrum ? '🥁' : t.def.emoji;
+                : isAudio ? 'Your voice <small>· ' + t.durSec.toFixed(1) + ' s</small>'
+                : t.def.label + ' <small>· ' + t.notes.length + ' notes</small>';
+    const emoji = isDrum ? '🥁' : isAudio ? '🎙' : t.def.emoji;
     el.innerHTML =
       '<div class="track-top">' +
         '<div class="ti" style="background:' + t.color + '22;border:1px solid ' + t.color + '55">' + emoji + '</div>' +
@@ -1197,23 +1260,24 @@ function renderTracks() {
         '<button class="toggle mute' + (t.muted ? ' on' : '') + '" title="Mute">M</button>' +
         '<button class="toggle solo' + (t.solo ? ' on' : '') + '" title="Solo">S</button>' +
         '<label class="mini" title="First and last bar this track plays (blank = to the end)">Bars <input type="number" class="barfrom" min="1" max="64" value="' + ((t.startBar || 0) + 1) + '" style="width:46px"> – <input type="number" class="barto" min="0" max="64" placeholder="end" value="' + (t.endBar || '') + '" style="width:46px"></label>' +
-        (isDrum ? '' : '<button class="toggle repeat' + (t.repeat ? ' on' : '') + '" title="Repeat this clip to fill its bars">Repeat</button>') +
+        (!isMel ? '' : '<button class="toggle repeat' + (t.repeat ? ' on' : '') + '" title="Repeat this clip to fill its bars">Repeat</button>') +
         '<label class="mini">Vol <input type="range" class="vol" min="0" max="1" step="0.01" value="' + t.volume + '"></label>' +
         '<label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.01" value="' + t.pan + '"></label>' +
         '<label class="mini">Reverb <input type="range" class="rev" min="0" max="1" step="0.01" value="' + t.rev + '"></label>' +
         '<label class="mini">Echo <input type="range" class="dly" min="0" max="1" step="0.01" value="' + t.dly + '"></label>' +
-        (isDrum ? '' :
+        (!isMel ? '' :
           '<button class="toggle pump' + (t.pump ? ' on' : '') + '" title="Duck on every kick (sidechain pump)">Pump</button>' +
           '<span class="mini"><button class="toggle oct-dn" title="Octave down">−8va</button> <span class="octlbl">' + (t.octave > 0 ? '+' : '') + t.octave + '</span> <button class="toggle oct-up" title="Octave up">+8va</button></span>') +
         (isDrum ? '<select class="kitpick" title="Drum kit"></select>' +
           '<button class="toggle fills' + (t.fills ? ' on' : '') + '" title="Add a snare/tom fill and crash every 4th bar">Fills</button>' +
           '<button class="btn small ghost vari" title="Create a variation of the last bar">✨ Variation</button>' +
           '<button class="btn small ghost clr">Clear</button>' : '') +
-        (isDrum ? '' : '<button class="btn small ghost editn" title="Open the note editor">✏ Edit notes</button>') +
+        (!isMel ? '' : '<button class="btn small ghost editn" title="Open the note editor">✏ Edit notes</button>') +
         '<button class="btn small icon del" title="Delete">🗑</button>' +
       '</div>';
 
     if (isDrum) buildDrumGrid(el.querySelector('.drumgrid'), t);
+    else if (isAudio) requestAnimationFrame(() => drawWave(el.querySelector('canvas.roll'), t));
     else requestAnimationFrame(() => drawRoll(el.querySelector('canvas.roll'), t.notes, t.color));
 
     const q = s => el.querySelector(s);
@@ -1227,10 +1291,10 @@ function renderTracks() {
     const applyBars = () => {
       t.startBar = Math.max(0, (parseInt(q('.barfrom').value, 10) || 1) - 1);
       const to = parseInt(q('.barto').value, 10); t.endBar = to > t.startBar ? to : 0;
-      growBarsToFit(); rebuildAllParts(); drawTimeline();
+      growBarsToFit(); rebuildAllParts(); drawTimeline(); if (isAudio) renderTracks();
     };
     q('.barfrom').addEventListener('change', applyBars); q('.barto').addEventListener('change', applyBars);
-    if (!isDrum) {
+    if (isMel) {
       q('.editn').addEventListener('click', () => openRoll(t));
       q('.repeat').addEventListener('click', e => { t.repeat = !t.repeat; e.target.classList.toggle('on', t.repeat); growBarsToFit(); rebuildAllParts(); drawTimeline(); });
       q('canvas.roll').addEventListener('click', () => openRoll(t));
@@ -1239,7 +1303,7 @@ function renderTracks() {
       const setOct = d => { t.octave = Math.max(-3, Math.min(3, t.octave + d)); lbl.textContent = (t.octave > 0 ? '+' : '') + t.octave; buildPart(t); };
       q('.oct-dn').addEventListener('click', () => setOct(-1));
       q('.oct-up').addEventListener('click', () => setOct(1));
-    } else {
+    } else if (isDrum) {
       const kp = q('.kitpick'); fillKitSelect(kp); kp.value = t.kitKey;
       kp.addEventListener('change', e => changeKit(t, e.target.value));
       q('.fills').addEventListener('click', e => { t.fills = !t.fills; e.target.classList.toggle('on', t.fills); buildPart(t); });
@@ -1370,6 +1434,14 @@ function instrumentCard(r, i) {
   return card;
 }
 
+async function addVoiceFromTake(quiet) {
+  if (!chat.take || !chat.take.audio) {
+    chat.wantVoice = true;
+    say("Sing it for me and I'll keep your real voice as a track as well as turning it into notes.", { then: () => chatSing('melody') }); return;
+  }
+  await addAudioTrack(chat.take.audio, chat.take.sr, { startBar: 0 });
+  if (!quiet) say('Done — your real voice is now a track, lined up with the notes. Use headphones, and try Auto-mix to balance it with everything else.', { chips: [{ label: '▶ Play', say: 'play' }, { label: 'Auto-mix', say: 'mix it' }, { label: 'Make a beat', say: 'make a beat' }] });
+}
 function recommendReply(intro) {
   const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre }).slice(0, 3);
   const f = DSP.melodyFeatures(chat.take.secNotes);
@@ -1381,6 +1453,7 @@ function recommendReply(intro) {
       chips: [
         { label: '➕ Add the best one', fn: () => applyInstrument(ranked[0].key, ranked[0].octave) },
         { label: 'Make a beat for it', say: 'make a beat' },
+        { label: '🎙 Keep my real voice too', fn: () => addVoiceFromTake() },
         { label: 'Build me a full song', say: 'build me a full song' },
         { label: 'Make it sadder', say: 'make it sad' }, { label: 'More energetic', say: 'make it energetic' }, { label: 'Cinematic', say: 'cinematic' }
       ] });
@@ -1567,6 +1640,7 @@ async function respond(text) {
     if (!tracks.length) { say('Nothing to mix yet — add a tune or a beat first.', { chips: suggestNext() }); return; }
     autoMix(); say('Mixed: levels balanced, bass kept centred, pads and leads spread across the stereo field with a touch of reverb.', { chips: [{ label: '▶ Play', say: 'play' }, { label: 'Arrange into a full song', say: 'arrange the song' }] }); return;
   }
+  if (/((keep|add|use|save|record|include) (my|the) (own |real |actual |original )?(voice|vocals?|singing)|real voice|vocal track|my own voice|(my|the) actual voice)/.test(nt) && !r.beatbox) { await addVoiceFromTake(); return; }
   if (r.surprise) {
     chat.lead = pick(["Let's go with a surprise!", 'Okay, my pick:']);
     if (chat.take) { await buildSong(); chat.last = { action: 'song' }; return; }
@@ -1822,11 +1896,12 @@ async function processChatRecording(kind, data, sr, bubble) {
     if (tempoMsg) applyBpm(tempoMsg);
     lbl.textContent = '🎤 My tune';
     if (res.notes.length < 2) { say("I couldn't catch a clear melody — try humming a bit louder and a bit longer, in a quiet spot.", { chips: [{ label: '🎤 Try again', fn: () => chatSing('melody') }] }); return; }
-    chat.take = { secNotes: res.notes, key: res.key ? res.key.name : null, audioUrl: url,
+    chat.take = { secNotes: res.notes, key: res.key ? res.key.name : null, audioUrl: url, audio: data.slice(Math.min(data.length - 1, Math.round((res.leadSec || 0) * sr))), sr,
       beatNotes: res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel })) };
     lbl.textContent = '🎤 My tune — ' + res.notes.length + ' notes' + (res.key ? ' · ' + res.key.name : '') + (tempoMsg ? ' · ' + tempoMsg + ' BPM' : '');
     const cv = document.createElement('canvas'); cv.className = 'mini'; bubble.appendChild(cv);
     requestAnimationFrame(() => drawMini(cv, chat.take.beatNotes));
+    if (chat.wantVoice) { chat.wantVoice = false; await addVoiceFromTake(true); }
     const wantInst = after.instrument || chat.pendingInstrument;
     if (wantInst) {
       await applyInstrument(wantInst);
@@ -2140,8 +2215,9 @@ const GM_PROG = { piano:0, guitar:25, nylon:24, eguitar:27, bass:33, violin:40, 
   organ:19, harmonium:20, xylo:13, supersaw:81, pluck:84, pad:89, wobble:38, acid:87, bell:4, chip:80, sub:38 };
 const GM_DRUM = { kick:36, snare:38, clap:39, hat:42, openhat:46, tom:45, perc:56, ride:51, crash:49 };
 $('#midiBtn').addEventListener('click', () => {
-  if (!tracks.length) { alert('Add at least one track first.'); return; }
-  const defs = tracks.map(t => {
+  const mt = tracks.filter(t => t.type !== 'audio');
+  if (!mt.length) { alert('Add at least one melody or drum track first (voice recordings can\'t be turned into MIDI).'); return; }
+  const defs = mt.map(t => {
     if (t.type === 'melody') return { name: t.def.label, program: GM_PROG[t.instKey] || 0, notes: melodyEvents(t).map(n => ({ midi: clampMidi(n.midi + 12 * t.octave), startB: n.startB, durB: n.durB, vel: n.vel })) };
     const notes = [], total = S.bars * 16, from = (t.startBar || 0) * 16, to = t.endBar ? Math.min(total, t.endBar * 16) : total;
     VOICES.forEach(v => { const a = t.pattern.voices[v]; for (let st = from; st < to; st++) if (a[st % t.pattern.steps]) notes.push({ midi: GM_DRUM[v], startB: st * 0.25, durB: 0.1, vel: v === 'hat' ? 0.7 : 0.95 }); });
@@ -2183,6 +2259,7 @@ $('#saveBtn').addEventListener('click', () => {
       const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, repeat:!!t.repeat };
       return t.type === 'melody'
         ? Object.assign(base, { instKey:t.instKey, notes:t.notes, pump:t.pump, octave:t.octave })
+        : t.type === 'audio' ? Object.assign(base, { sr:t.sr, wav:u8ToB64(new Uint8Array(DSP.encodeWav([t.data], t.sr))) })
         : Object.assign(base, { kitKey:t.kitKey, pattern:t.pattern, fills:!!t.fills });
     }) };
   download(new Blob([JSON.stringify(data)], { type:'application/json' }), 'melodize-project.json');
@@ -2205,6 +2282,7 @@ $('#loadFile').addEventListener('change', async e => {
     for (const t of data.tracks || []) {
       if (t.type === 'melody' && ALL_INST[t.instKey]) await addMelodyTrack(t.instKey, t.notes, t);
       else if (t.type === 'drums') await addDrumTrack(t.pattern, KITS[t.kitKey] ? t.kitKey : 'club', t);
+      else if (t.type === 'audio' && t.wav) { const w = DSP.decodeWav(b64ToBuf(t.wav)); await addAudioTrack(w.data, w.sr, t); }
       const nt = tracks[tracks.length - 1];
       if (nt) { nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.repeat = !!t.repeat; }
     }
