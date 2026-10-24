@@ -471,6 +471,256 @@ function encodeMidi(bpm, trackDefs) {
   return new Uint8Array(all);
 }
 
+/* =====================================================================
+   COMPOSER BRAIN (all offline music theory): chords from a melody, band parts, answer phrases,
+   scene -> recipe, and a taste profile.
+===================================================================== */
+const MAJ_PCS = [0, 2, 4, 5, 7, 9, 11], MIN_PCS = [0, 2, 3, 5, 7, 8, 10];
+const pcOf = m => ((Math.round(m) % 12) + 12) % 12;
+function scalePcs(root, mode) { return (mode === 'minor' ? MIN_PCS : MAJ_PCS).map(d => (root + d) % 12); }
+function chordName(rootPc, q) { return NOTE_NAMES[rootPc] + (q === 'min' ? 'm' : q === 'dim' ? '°' : ''); }
+// diatonic triad candidates for a key
+function chordCandidates(root, mode) {
+  const sc = scalePcs(root, mode), out = [];
+  const add = (deg, q, rp, label) => {
+    const r = rp === undefined ? sc[deg] : rp, third = (r + (q === 'min' || q === 'dim' ? 3 : 4)) % 12, fifth = (r + (q === 'dim' ? 6 : 7)) % 12;
+    out.push({ deg, q, rootPc: r, pcs: [r, third, fifth], name: chordName(r, q), label });
+  };
+  if (mode === 'minor') { add(0, 'min', undefined, 'i'); add(2, 'maj', undefined, 'III'); add(3, 'min', undefined, 'iv'); add(4, 'maj', (root + 7) % 12, 'V'); add(4, 'min', undefined, 'v'); add(5, 'maj', undefined, 'VI'); add(6, 'maj', undefined, 'VII'); }
+  else { add(0, 'maj', undefined, 'I'); add(1, 'min', undefined, 'ii'); add(2, 'min', undefined, 'iii'); add(3, 'maj', undefined, 'IV'); add(4, 'maj', undefined, 'V'); add(5, 'min', undefined, 'vi'); }
+  return out;
+}
+function chordTrans(a, b, mode) {   // musical taste for how chords follow each other (log-ish bonus)
+  const k = a.label + '>' + b.label;
+  const T = mode === 'minor'
+    ? { 'iv>VII': 0.5, 'V>i': 1.3, 'i>iv': 0.7, 'i>VI': 0.8, 'VI>VII': 0.8, 'VII>i': 1.1, 'iv>V': 0.9, 'III>VII': 0.5, 'VI>III': 0.5, 'i>VII': 0.6, 'VII>VI': 0.5, 'iv>i': 0.5, 'i>V': 0.6, 'VI>V': 0.6, 'v>i': 0.4, 'III>iv': 0.4, 'i>III': 0.5 }
+    : { 'V>I': 1.3, 'IV>V': 0.9, 'I>IV': 0.7, 'vi>IV': 0.9, 'IV>I': 0.5, 'I>V': 0.6, 'V>vi': 0.7, 'ii>V': 1.1, 'vi>ii': 0.6, 'I>vi': 0.7, 'iii>vi': 0.6, 'IV>ii': 0.5, 'vi>V': 0.5, 'I>ii': 0.4, 'iii>IV': 0.5, 'V>IV': 0.1 };
+  return (T[k] || 0) + (a.label === b.label ? 0.05 : 0);
+}
+function harmonize(notes, key) {       // notes: [{midi,startB,durB}] ; key: {root, mode}
+  let endB = 0; notes.forEach(n => { endB = Math.max(endB, n.startB + n.durB); });
+  const bars = Math.max(1, Math.min(32, Math.ceil(endB / 4 - 1e-6)));
+  const cands = chordCandidates(key.root, key.mode);
+  const H = [];
+  for (let b = 0; b < bars; b++) {
+    const h = new Array(12).fill(0);
+    notes.forEach(n => {
+      const s = Math.max(n.startB, b * 4), e = Math.min(n.startB + n.durB, b * 4 + 4); if (e <= s) return;
+      let w = e - s; const beat = n.startB - b * 4;
+      if (beat >= -1e-6 && beat < 0.5) w *= 1.7; else if (Math.abs(beat - 2) < 0.5) w *= 1.3;
+      h[pcOf(n.midi)] += w;
+    });
+    H.push(h);
+  }
+  const emit = (h, c) => {
+    const tot = h.reduce((a, b) => a + b, 0); if (!tot) return 0;
+    let s = 0;
+    for (let pc = 0; pc < 12; pc++) { if (!h[pc]) continue; const i = c.pcs.indexOf(pc); s += i === 0 ? h[pc] * 1.0 : i === 1 ? h[pc] * 0.9 : i === 2 ? h[pc] * 0.7 : -h[pc] * 0.55; }
+    return 1.7 * s / tot;
+  };
+  const sc = scalePcs(key.root, key.mode);
+  // Viterbi over bars
+  let prev = cands.map((c, i) => ({ s: emit(H[0], c) + (c.deg === 0 && c.q !== 'dim' ? 0.7 : 0), from: -1 }));
+  const back = [prev];
+  for (let b = 1; b < bars; b++) {
+    const cur = cands.map((c, i) => {
+      let best = -1e9, from = 0;
+      prev.forEach((p, j) => { const v = p.s + chordTrans(cands[j], c, key.mode) - (j === i ? 0.12 : 0); if (v > best) { best = v; from = j; } });
+      return { s: best + emit(H[b], c) * 1.0, from };
+    });
+    back.push(cur); prev = cur;
+  }
+  // last bar prefers resolving to the tonic (or dominant if the tune ends on 2/5)
+  let bi = 0, bs = -1e9;
+  prev.forEach((p, i) => { const c = cands[i]; const v = p.s + (c.deg === 0 ? 0.9 : c.deg === 4 ? 0.2 : 0); if (v > bs) { bs = v; bi = i; } });
+  const idx = new Array(bars); idx[bars - 1] = bi;
+  for (let b = bars - 1; b > 0; b--) idx[b - 1] = back[b][idx[b]].from;
+  return idx.map((ci, b) => Object.assign({ bar: b }, cands[ci]));
+}
+const BAND_STYLES = {
+  pop:       { chord: 'piano',    bass: 'bass', cpat: 'half',   bpat: 'pop',   drums: 'pop',    label: 'Pop band' },
+  house:     { chord: 'supersaw', bass: 'sub',  cpat: 'stab',   bpat: 'off',   drums: 'house',  label: 'House' },
+  lofi:      { chord: 'bell',     bass: 'bass', cpat: 'strum7', bpat: 'lofi',  drums: 'lofi',   label: 'Lo-fi' },
+  trap:      { chord: 'pad',      bass: 'sub',  cpat: 'whole',  bpat: 'trap',  drums: 'trap',   label: 'Trap' },
+  rock:      { chord: 'eguitar',  bass: 'bass', cpat: 'eighths',bpat: 'eight', drums: 'rock',   label: 'Rock' },
+  cinematic: { chord: 'pad',      bass: 'cello',cpat: 'whole',  bpat: 'whole', drums: 'bigroom',label: 'Cinematic' },
+  arp:       { chord: 'pluck',    bass: 'bass', cpat: 'arp',    bpat: 'pop',   drums: 'pop',    label: 'Arpeggio pop' }
+};
+function voiceChords(chords, add7, prevV) {
+  const out = []; let last = prevV || [60, 64, 67];
+  chords.forEach(c => {
+    const base = 48 + ((c.rootPc - 0 + 12) % 12), pcs = c.pcs.slice(), r = base;
+    const t = r + ((pcs[1] - pcs[0] + 12) % 12), f = r + ((pcs[2] - pcs[0] + 12) % 12);
+    let opts = [[r, t, f], [t, f, r + 12], [f, r + 12, t + 12]];
+    opts = opts.concat(opts.map(o => o.map(x => x + 12)), opts.map(o => o.map(x => x - 12)));
+    let best = null, bd = 1e9;
+    opts.forEach(o => {
+      const mean = (o[0] + o[1] + o[2]) / 3; if (mean < 54 || mean > 70) return;
+      let d = 0; for (let i = 0; i < 3; i++) d += Math.abs(o[i] - last[i]);
+      d += Math.abs(mean - 62) * 0.3;
+      if (d < bd) { bd = d; best = o; }
+    });
+    best = (best || [r + 12, t + 12, f + 12]).slice();
+    let v = best.slice();
+    if (add7) { const sev = (c.q === 'maj' && (c.deg === 0 || c.deg === 3 || c.deg === 2 || c.deg === 5)) ? 11 : 10; v.push(best[0] + ((c.rootPc + sev) % 12 - c.rootPc + 12) % 12); }
+    out.push({ chord: c, v });
+    last = best;
+  });
+  return out;
+}
+function bandParts(chords, styleId, opts) {
+  const st = BAND_STYLES[styleId] || BAND_STYLES.pop; opts = opts || {};
+  const voiced = voiceChords(chords, st.cpat === 'strum7');
+  const cn = [], bn = [];
+  const C = (v, s, d, vel) => v.forEach((m, i) => cn.push({ midi: m, startB: s, durB: d, vel: vel }));
+  const bassNote = c => { let m = 36 + c.rootPc; if (m > 43) m -= 12; return m; };
+  chords.forEach((c, bi) => {
+    const o = bi * 4, v = voiced[bi].v, b = bassNote(c), fifth = b + 7;
+    switch (st.cpat) {
+      case 'half': C(v, o, 2, 0.6); C(v, o + 2, 2, 0.55); break;
+      case 'stab': [0.5, 1.5, 2.5, 3.5].forEach(x => C(v, o + x, 0.3, 0.7)); break;
+      case 'strum7': C(v, o, 1.5, 0.55); C(v, o + 2.5, 1.5, 0.5); break;
+      case 'whole': C(v, o, 4, 0.5); break;
+      case 'eighths': for (let x = 0; x < 4; x += 0.5) C(v.slice(0, 2), o + x, 0.45, x % 1 ? 0.55 : 0.72); break;
+      case 'arp': for (let x = 0, k = 0; x < 4; x += 0.5, k++) { const seq = [v[0], v[1], v[2], v[1]]; cn.push({ midi: seq[k % 4] + (k % 8 >= 4 ? 12 : 0), startB: o + x, durB: 0.45, vel: 0.62 }); } break;
+    }
+    switch (st.bpat) {
+      case 'pop': bn.push({ midi: b, startB: o, durB: 1.5, vel: 0.85 }, { midi: b, startB: o + 2, durB: 1, vel: 0.75 }, { midi: fifth, startB: o + 3, durB: 1, vel: 0.7 }); break;
+      case 'off': [0.5, 1.5, 2.5, 3.5].forEach(x => bn.push({ midi: b, startB: o + x, durB: 0.4, vel: 0.85 })); break;
+      case 'lofi': bn.push({ midi: b, startB: o, durB: 2, vel: 0.8 }, { midi: fifth, startB: o + 2.5, durB: 1.5, vel: 0.7 }); break;
+      case 'trap': bn.push({ midi: b - 0, startB: o, durB: 1.75, vel: 0.9 }, { midi: b, startB: o + 2.5, durB: 0.5, vel: 0.8 }, { midi: b, startB: o + 3, durB: 1, vel: 0.85 }); break;
+      case 'eight': for (let x = 0; x < 4; x += 0.5) bn.push({ midi: b, startB: o + x, durB: 0.45, vel: x % 1 ? 0.7 : 0.85 }); break;
+      case 'whole': bn.push({ midi: b, startB: o, durB: 4, vel: 0.8 }); break;
+    }
+  });
+  return { chords: cn, bass: bn, style: st };
+}
+function autoBand(notes, key, styleId) {
+  const chords = harmonize(notes, key);
+  const parts = bandParts(chords, styleId || 'pop');
+  const prog = chords.map(c => c.name).join(' – ');
+  const roman = chords.map(c => c.label).join(' ');
+  return { key, chords, progression: prog, roman, parts, styleId: styleId || 'pop' };
+}
+
+/* ----- jam partner: compose an answer phrase in the same key ----- */
+function scaleLadder(root, mode) {
+  const pcs = scalePcs(root, mode), out = [];
+  for (let m = 24; m <= 108; m++) if (pcs.indexOf(pcOf(m)) !== -1) out.push(m);
+  return out;
+}
+function nearestIdx(ladder, midi) { let bi = 0, bd = 1e9; ladder.forEach((m, i) => { const d = Math.abs(m - midi); if (d < bd) { bd = d; bi = i; } }); return bi; }
+function answerPhrase(notes, key, opts) {
+  opts = opts || {};
+  const rnd = opts.rand || Math.random;
+  if (!notes.length) return [];
+  const src = notes.slice().sort((a, b) => a.startB - b.startB);
+  const ladder = scaleLadder(key.root, key.mode);
+  const idxs = src.map(n => nearestIdx(ladder, n.midi));
+  let endB = 0; src.forEach(n => { endB = Math.max(endB, n.startB + n.durB); });
+  const offset = Math.ceil(endB / 4 - 1e-6) * 4, t0 = src[0].startB;
+  const kinds = ['sequence', 'inversion', 'sequence', 'echo'];
+  const kind = opts.kind || kinds[Math.floor(rnd() * kinds.length)];
+  const first = idxs[0], lo = Math.min.apply(null, idxs) - 3, hi = Math.max.apply(null, idxs) + 3;
+  let out = idxs.map(i => {
+    let j = i;
+    if (kind === 'inversion') j = 2 * first - i + (rnd() < 0.5 ? 0 : 1);
+    else if (kind === 'sequence') j = i + (rnd() < 0.5 ? 2 : -2);
+    else j = i + (rnd() < 0.5 ? 1 : -1);
+    while (j > hi) j -= 7; while (j < lo) j += 7;
+    return j;
+  });
+  // keep it singable: tame big leaps
+  for (let i = 1; i < out.length; i++) { while (out[i] - out[i - 1] > 5) out[i] -= 7; while (out[i] - out[i - 1] < -5) out[i] += 7; }
+  // land on the tonic (or the 3rd / 5th above it for a softer feel)
+  const tonicPc = key.root;
+  const nearTonic = ref => { let bi = ladder.length - 1, bd = 1e9; ladder.forEach((m, i) => { if (pcOf(m) === tonicPc) { const d = Math.abs(i - ref); if (d < bd) { bd = d; bi = i; } } }); return bi; };
+  const ending = opts.kind === 'ending' || opts.final;
+  if (out.length >= 2 && ending) out[out.length - 2] = nearTonic(out[out.length - 1]) + (rnd() < 0.5 ? 1 : -1);
+  out[out.length - 1] = nearTonic(out.length > 1 ? out[out.length - 2] : out[out.length - 1]);
+  return src.map((n, i) => {
+    const last = i === src.length - 1;
+    const dur = last ? Math.max(n.durB, Math.min(2, offset + Math.ceil((n.startB + n.durB - t0) / 4) * 4 - (offset + (n.startB - t0)))) : n.durB;
+    return { midi: ladder[Math.max(0, Math.min(ladder.length - 1, out[i]))], startB: offset + (n.startB - t0), durB: Math.max(0.25, dur), vel: n.vel || 0.85 };
+  });
+}
+function motifFromScene(key, energy, bars, rand) {
+  const rnd = rand || Math.random, ladder = scaleLadder(key.root, key.mode);
+  let idx = nearestIdx(ladder, 60 + (energy > 0.6 ? 7 : 0) + key.root % 12 - 6);
+  const rhythms = energy > 0.65 ? [[0.5, 0.5, 1, 0.5, 0.5, 1], [0.5, 0.5, 0.5, 0.5, 1, 1], [1, 0.5, 0.5, 1, 1]] : energy > 0.35 ? [[1, 1, 0.5, 0.5, 1], [1, 0.5, 0.5, 2], [1.5, 0.5, 1, 1]] : [[2, 1, 1], [1.5, 0.5, 2], [1, 1, 2]];
+  const notes = []; let t = 0;
+  for (let b = 0; b < bars; b++) {
+    const r = rhythms[Math.floor(rnd() * rhythms.length)]; let acc = 0;
+    r.forEach((d, i) => {
+      if (acc >= 4) return; d = Math.min(d, 4 - acc);
+      notes.push({ midi: ladder[idx], startB: b * 4 + acc, durB: d * 0.92, vel: 0.75 + rnd() * 0.2 });
+      acc += d;
+      const step = [-2, -1, -1, 1, 1, 2][Math.floor(rnd() * 6)]; idx = Math.max(nearestIdx(ladder, 55), Math.min(nearestIdx(ladder, 79), idx + step));
+    });
+  }
+  // resolve the end to the dominant (leaves the answer to finish on the tonic)
+  const domPc = (key.root + 7) % 12; let bi = idx, bd = 1e9;
+  ladder.forEach((m, i) => { if (pcOf(m) === domPc && Math.abs(i - idx) < bd) { bd = Math.abs(i - idx); bi = i; } });
+  notes[notes.length - 1].midi = ladder[bi];
+  return notes;
+}
+
+/* ----- scene words -> music recipe ----- */
+// word, mode(-1 minor..+1 major), energy(-1..1), bpm hint (0=none), instruments, style, reverb
+const SCENE_LEX = [
+  ['rain',-.6,-.4,72,'piano pad','lofi',.6],['rainy',-.6,-.4,72,'piano pad','lofi',.6],['storm',-.8,.5,100,'cello pad','cinematic',.7],['thunder',-.8,.6,100,'cello','cinematic',.7],['sun',.8,.3,100,'guitar pluck','pop',.2],['sunny',.8,.4,104,'guitar pluck','pop',.2],['sunrise',.6,.1,84,'harp pad','cinematic',.5],['sunset',.2,-.1,80,'sax piano','lofi',.5],['snow',.2,-.5,66,'bell harp','cinematic',.7],['winter',-.2,-.4,70,'bell piano','cinematic',.6],['summer',.9,.5,112,'guitar pluck','pop',.2],['spring',.9,.3,98,'flute guitar','pop',.3],['autumn',-.3,-.3,76,'cello piano','lofi',.5],['fog',-.5,-.6,64,'pad cello','cinematic',.8],['wind',0,-.2,76,'flute harp','cinematic',.6],
+  ['night',-.4,-.3,76,'piano pad','lofi',.5],['midnight',-.6,-.2,76,'bell pad','lofi',.6],['morning',.7,.1,88,'guitar flute','pop',.3],['evening',.1,-.1,82,'sax piano','lofi',.4],['dawn',.5,0,80,'harp flute','cinematic',.5],['dusk',-.1,-.2,78,'sax pad','lofi',.5],['late',-.3,-.3,74,'piano','lofi',.5],
+  ['tokyo',-.2,.1,92,'bell piano','lofi',.5],['city',-.1,.3,100,'piano pluck','house',.3],['beach',.8,.2,96,'guitar flute','pop',.3],['ocean',.2,-.3,70,'harp pad','cinematic',.8],['sea',.2,-.3,72,'harp pad','cinematic',.8],['forest',.1,-.3,70,'flute harp','cinematic',.6],['jungle',.2,.4,108,'xylo flute','afro',.4],['space',-.2,-.2,70,'pad bell','cinematic',.9],['galaxy',-.1,-.1,72,'pad bell','cinematic',.9],['desert',-.5,-.1,84,'harmonium flute','cinematic',.6],['mountain',.3,-.1,76,'horn cello','cinematic',.7],['cafe',.5,-.3,82,'piano guitar','lofi',.3],['coffee',.5,-.3,82,'piano guitar','lofi',.3],['train',-.1,.1,96,'piano pluck','lofi',.4],['road',.5,.3,110,'eguitar bass','rock',.3],['highway',.5,.4,116,'eguitar bass','rock',.3],['village',.6,-.1,86,'flute guitar','pop',.3],['church',.2,-.4,64,'organ choir','cinematic',.9],['temple',-.1,-.4,66,'harmonium flute','cinematic',.8],['garden',.7,-.2,82,'harp flute','pop',.4],['park',.7,0,92,'guitar flute','pop',.3],['rooftop',.3,.1,90,'piano pad','lofi',.5],['club',.1,.9,126,'supersaw pluck','house',.3],['festival',.6,.9,128,'supersaw','bigroom',.3],['stadium',.5,.8,120,'eguitar horn','rock',.4],['castle',-.2,.1,84,'horn harp','cinematic',.8],['medieval',-.4,.1,86,'harp flute','cinematic',.7],['western',-.1,.1,100,'guitar harmonium','rock',.3],['tropical',.9,.4,104,'xylo guitar','reggaeton',.3],['island',.8,.2,98,'guitar xylo','reggaeton',.3],
+  ['workout',.4,1,130,'supersaw bass','house',.2],['gym',.3,1,132,'supersaw bass','trap',.2],['run',.4,.8,128,'pluck supersaw','house',.2],['running',.4,.8,128,'pluck supersaw','house',.2],['party',.8,.9,124,'supersaw pluck','house',.3],['dance',.7,.9,122,'pluck supersaw','disco',.3],['study',.2,-.7,76,'piano','lofi',.4],['focus',0,-.4,80,'piano pad','lofi',.4],['sleep',.1,-1,58,'pad harp','cinematic',.9],['sleepy',.1,-.9,60,'pad bell','cinematic',.9],['meditate',.2,-.9,60,'pad harmonium','cinematic',.9],['meditation',.2,-.9,60,'pad harmonium','cinematic',.9],['relax',.5,-.7,70,'guitar pad','lofi',.5],['chill',.4,-.6,76,'piano guitar','lofi',.5],['calm',.4,-.7,68,'piano pad','lofi',.6],['peaceful',.6,-.8,66,'harp pad','cinematic',.7],['drive',.3,.4,108,'eguitar pad','pop',.4],['driving',.3,.4,108,'eguitar pad','pop',.4],['cook',.7,.1,92,'guitar piano','pop',.2],['cooking',.7,.1,92,'guitar piano','pop',.2],['read',.1,-.6,70,'piano','lofi',.4],['reading',.1,-.6,70,'piano','lofi',.4],['wedding',.9,-.1,84,'piano violin','pop',.6],['birthday',1,.6,110,'xylo guitar','pop',.2],['christmas',.8,.1,90,'bell choir','pop',.5],['gaming',.2,.7,120,'chip bass','house',.2],['game',.2,.6,116,'chip pluck','house',.2],['battle',-.8,.9,128,'eguitar horn','rock',.4],['chase',-.6,.9,132,'cello eguitar','dnb',.3],['hero',.7,.8,110,'horn cello','cinematic',.6],['victory',1,.8,112,'horn trumpet','cinematic',.6],['trailer',-.2,.7,100,'cello horn','cinematic',.8],['movie',0,.2,86,'piano cello','cinematic',.7],['film',0,.2,86,'piano cello','cinematic',.7],
+  ['happy',1,.5,108,'guitar pluck','pop',.2],['joy',1,.6,110,'guitar xylo','pop',.2],['joyful',1,.6,110,'guitar xylo','pop',.2],['sad',-1,-.5,70,'piano cello','lofi',.6],['lonely',-.9,-.6,66,'piano pad','lofi',.7],['alone',-.8,-.6,66,'piano pad','lofi',.7],['heartbreak',-1,-.4,68,'piano violin','lofi',.7],['broken',-.9,-.3,70,'piano cello','lofi',.6],['cry',-1,-.5,66,'violin piano','lofi',.7],['crying',-1,-.5,66,'violin piano','lofi',.7],['nostalgic',-.2,-.4,76,'piano bell','lofi',.6],['nostalgia',-.2,-.4,76,'piano bell','lofi',.6],['memory',-.2,-.4,74,'piano bell','lofi',.6],['memories',-.2,-.4,74,'piano bell','lofi',.6],['hope',.8,-.1,84,'piano flute','pop',.5],['hopeful',.8,-.1,84,'piano flute','pop',.5],['love',.7,-.2,80,'piano violin','pop',.5],['romantic',.5,-.3,76,'piano violin','pop',.6],['romance',.5,-.3,76,'piano violin','pop',.6],['kiss',.6,-.3,76,'piano sax','lofi',.5],['dreamy',.3,-.4,72,'pad bell','lofi',.8],['dream',.3,-.4,72,'pad bell','lofi',.8],['mysterious',-.7,-.2,78,'pad cello','cinematic',.8],['mystery',-.7,-.2,78,'pad cello','cinematic',.8],['dark',-1,.1,86,'pad cello','trap',.6],['spooky',-.9,-.1,80,'bell pad','cinematic',.8],['scary',-.9,.2,90,'cello pad','cinematic',.8],['fear',-.9,.2,90,'cello pad','cinematic',.8],['angry',-.8,.9,130,'eguitar bass','rock',.3],['rage',-.9,1,140,'eguitar bass','rock',.3],['epic',.2,.8,110,'horn cello','cinematic',.7],['powerful',.2,.8,112,'horn cello','bigroom',.5],['magical',.7,-.1,84,'harp bell','cinematic',.8],['magic',.7,-.1,84,'harp bell','cinematic',.8],['fantasy',.5,0,88,'harp flute','cinematic',.8],['fairy',.8,-.1,90,'bell harp','cinematic',.8],['funny',.9,.5,112,'xylo pluck','pop',.2],['silly',.9,.5,112,'chip xylo','pop',.2],['playful',.9,.4,106,'xylo pluck','pop',.2],['bounce',.8,.6,118,'pluck bass','disco',.2],['groovy',.6,.5,110,'bass piano','disco',.2],['funky',.6,.6,112,'bass eguitar','disco',.2],['jazzy',.2,-.1,88,'piano sax','lofi',.4],['jazz',.2,-.1,88,'piano sax','lofi',.4],['blues',-.5,-.1,80,'guitar harmonium','rock',.4],['retro',.5,.4,116,'chip pluck','disco',.3],['80s',.5,.6,118,'supersaw bass','disco',.4],['90s',.4,.4,100,'piano bass','boombap',.3],['hiphop',-.1,.3,90,'piano bass','boombap',.3],['rap',-.2,.4,92,'piano sub','trap',.3],['trap',-.4,.5,140,'pad sub','trap',.4],['techno',-.3,.8,130,'acid pluck','techno',.3],['bollywood',.6,.6,108,'harmonium violin','afro',.4],['indian',.2,.2,92,'harmonium flute','afro',.5],['classical',.3,-.2,82,'piano violin','cinematic',.6],['acoustic',.6,-.1,88,'guitar','pop',.3],['electronic',.2,.6,120,'supersaw pluck','house',.3],['ambient',0,-.8,62,'pad bell','cinematic',.95],['soft',.3,-.7,68,'piano pad','lofi',.5],['gentle',.5,-.6,72,'harp piano','lofi',.5],['quiet',.2,-.8,64,'piano','lofi',.5],['slow',0,-.6,66,'piano cello','lofi',.5],['fast',.2,.7,128,'pluck supersaw','house',.2],['energetic',.5,.9,128,'supersaw pluck','house',.2],['upbeat',.8,.7,118,'guitar pluck','pop',.2],['uplifting',.9,.6,110,'piano guitar','pop',.3],['cinematic',0,.3,90,'cello pad','cinematic',.8],['summery',.9,.5,108,'guitar pluck','reggaeton',.2],['cozy',.5,-.5,72,'piano guitar','lofi',.5],['warm',.6,-.3,78,'guitar piano','lofi',.4],['cold',-.4,-.3,72,'bell pad','cinematic',.7],['lazy',.4,-.6,70,'guitar sax','lofi',.4],['sunday',.5,-.4,76,'guitar piano','lofi',.4],['friday',.8,.7,118,'pluck supersaw','house',.3]
+];
+const SCENE_INDEX = (() => { const m = {}; SCENE_LEX.forEach(r => { m[r[0]] = r; }); return m; })();
+const SCENE_ALIAS = { rainy: 'rain', raining: 'rain', stormy: 'storm', snowy: 'snow', foggy: 'fog', windy: 'wind', dancing: 'dance', studying: 'study', sleeping: 'sleep', relaxing: 'relax', relaxed: 'relax', chilling: 'chill', calming: 'calm', working: 'focus', work: 'focus', workouts: 'workout', exercise: 'workout', lonely: 'lonely', loneliness: 'lonely', sadness: 'sad', happiness: 'happy', beautiful: 'peaceful', beaches: 'beach', cities: 'city', stars: 'space', star: 'space', moon: 'night', moonlight: 'night', nights: 'night', cars: 'drive', car: 'drive', love: 'love', lovely: 'love', heart: 'love', parties: 'party', gamer: 'gaming' };
+function sceneRecipe(text) {
+  const words = String(text || '').toLowerCase().replace(/[’']/g, '').replace(/[^a-z0-9 ]+/g, ' ').split(/\s+/).filter(Boolean);
+  const hits = [];
+  words.forEach(w => { const k = SCENE_LEX_KEY(w); if (k) hits.push(k); });
+  if (!hits.length) return null;
+  let m = 0, e = 0, bpmSum = 0, bpmN = 0, rev = 0; const instV = {}, styleV = {};
+  hits.forEach(r => {
+    m += r[1]; e += r[2]; rev += r[6]; if (r[3]) { bpmSum += r[3]; bpmN++; }
+    r[4].split(' ').forEach((k, i) => { instV[k] = (instV[k] || 0) + (i === 0 ? 1.2 : 1); });
+    styleV[r[5]] = (styleV[r[5]] || 0) + 1;
+  });
+  const n = hits.length, mode = m / n >= 0 ? 'major' : 'minor';
+  const energy = Math.max(0, Math.min(1, 0.5 + e / n * 0.5));
+  const bpm = Math.round(bpmN ? bpmSum / bpmN : 60 + energy * 80);
+  const top = o => Object.keys(o).sort((a, b) => o[b] - o[a]);
+  const style = top(styleV)[0];
+  const insts = top(instV);
+  const PAD = ['pad', 'organ', 'harmonium', 'choir', 'harp', 'bell'];
+  const lead = insts.find(k => PAD.indexOf(k) === -1 && k !== 'bass' && k !== 'sub') || 'piano';
+  const harmony = insts.find(k => k !== lead && k !== 'bass' && k !== 'sub' && k !== 'choir') || 'pad';
+  const roots = mode === 'minor' ? [9, 2, 4, 7, 0] : [0, 7, 2, 5, 9];
+  const root = roots[Math.floor(Math.abs(hashStr(text)) % roots.length)];
+  const mood = mode === 'minor' ? (energy > 0.6 ? 'dark & intense' : 'moody & soft') : (energy > 0.6 ? 'bright & energetic' : 'warm & gentle');
+  const BAND_MAP = { disco: 'house', reggaeton: 'pop', afro: 'pop', boombap: 'lofi', dnb: 'house', techno: 'house', bigroom: 'house' };
+  const bandStyle = BAND_STYLES[style] ? style : (BAND_MAP[style] || 'pop');
+  const drumStyle = style === 'cinematic' ? (energy > 0.5 ? 'bigroom' : null) : style;
+  return { words: hits.map(r => r[0]), mode, root, energy, bpm: Math.max(56, Math.min(150, bpm)), style: bandStyle, drumStyle, lead, harmony, reverb: Math.round(rev / n * 100) / 100, mood };
+}
+function SCENE_LEX_KEY(w) { return SCENE_INDEX[w] || (SCENE_ALIAS[w] && SCENE_INDEX[SCENE_ALIAS[w]]) || null; }
+function hashStr(s) { let h = 7; String(s).split('').forEach(c => { h = (h * 31 + c.charCodeAt(0)) | 0; }); return h; }
+
+/* ----- taste profile ----- */
+const taste = {
+  empty() { return { inst: {}, style: {}, bpm: {}, n: 0 }; },
+  bump(p, kind, key, amt) {
+    if (key === null || key === undefined || key === '') return p;
+    const k = kind === 'bpm' ? String(Math.round(key / 10) * 10) : String(key);
+    p[kind][k] = (p[kind][k] || 0) + amt; p.n++;
+    Object.keys(p[kind]).forEach(x => { if (Math.abs(p[kind][x]) < 0.05) delete p[kind][x]; });
+    return p;
+  },
+  top(p, kind, minScore) { const o = p[kind] || {}, ks = Object.keys(o).sort((a, b) => o[b] - o[a]); return ks.length && o[ks[0]] >= (minScore || 2) ? ks[0] : null; },
+  weights(p, kind) { const o = p[kind] || {}, mx = Math.max.apply(null, [1].concat(Object.keys(o).map(k => Math.abs(o[k])))); const w = {}; Object.keys(o).forEach(k => { w[k] = Math.max(-1, Math.min(1, o[k] / mx)); }); return w; }
+};
+
 /* ---------- read back a 16-bit PCM WAV written by encodeWav (mono or stereo -> mono) ---------- */
 function decodeWav(arrayBuffer) {
   const v = new DataView(arrayBuffer);
@@ -808,7 +1058,10 @@ function recommendInstruments(notes, ctx) {
     const mw = ctx.mood ? (p.moods[ctx.mood] || 0) : 0, gw = ctx.genre ? (p.genres[ctx.genre] || 0) : 0;
     if (ctx.mood) { score += 0.25 * mw; maxS += 0.25; }
     if (ctx.genre) { score += 0.25 * gw; maxS += 0.25; }
+    const tw = ctx.taste && ctx.taste[key] ? ctx.taste[key] : 0;
+    if (tw) score += 0.15 * tw;
     const bits = [];
+    if (tw > 0.5) bits.push("it's one of your favourites");
     if (reg >= 0.8 && bestShift === 0) bits.push('your melody sits right in its natural range');
     else if (bestShift !== 0) bits.push("I'd move it " + (bestShift > 0 ? 'up' : 'down') + ' ' + Math.abs(bestShift) + ' octave' + (Math.abs(bestShift) > 1 ? 's' : '') + ' to fit its range');
     if (sus >= 0.75) bits.push(f.sustainLevel > 0.5 ? 'long, flowing notes suit its sustained tone' : 'short, punchy notes suit its plucked attack');
@@ -963,6 +1216,6 @@ function extraChat(n, raw, r) {
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, detectDrumHits, hitsToPattern, encodeWav,
+  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });

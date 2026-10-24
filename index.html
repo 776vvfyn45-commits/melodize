@@ -1096,7 +1096,7 @@ async function onRecordingStopped(data, sr) {
 function newTrackBase(type) {
   const id = ++trackIdCounter;
   return { id, type, color: trackColors[(id - 1) % trackColors.length], chain: makeTrackChain(),
-    muted:false, solo:false, volume:0.85, pan:0, rev:0, dly:0, pump:false, octave:0, part:null, startBar:0, endBar:0, repeat:false };
+    muted:false, solo:false, volume:0.85, pan:0, rev:0, dly:0, pump:false, octave:0, part:null, startBar:0, endBar:0, repeat:false, created: Date.now() };
 }
 function applyTrackFx(t) {
   t.chain.pan.pan.value = t.pan; t.chain.rev.gain.value = t.rev; t.chain.dly.gain.value = t.dly;
@@ -1206,8 +1206,9 @@ function makeVariation(t) {
   if (r() < 0.5) { const pick = [2, 5, 9, 13]; V.perc[off + pick[Math.floor(r() * pick.length)]] = 1; }
   buildPart(t); renderTracks();
 }
-function removeTrack(id) {
+function removeTrack(id, silent) {
   const t = tracks.find(x => x.id === id); if (!t) return;
+  if (!silent && Date.now() - (t.created || 0) < 90000) { if (t.type === 'melody' && !t.isBand) tasteBump('inst', t.instKey, -2); else if (t.type === 'drums' && t.styleId) tasteBump('style', t.styleId, -2); }
   try { t.part && t.part.dispose(); } catch(e){}
   try { t.inst && t.inst.dispose(); } catch(e){}
   try { t.kit && t.kit.dispose(); } catch(e){}
@@ -1287,6 +1288,7 @@ function renderTracks() {
           '<button class="btn small ghost vari" title="Create a variation of the last bar">✨ Variation</button>' +
           '<button class="btn small ghost clr">Clear</button>' : '') +
         (!isMel ? '' : '<button class="btn small ghost editn" title="Open the note editor">✏ Edit notes</button>') +
+        ((!isMel || t.isBand || t.isPartner || BASSY.indexOf(t.instKey) !== -1) ? '' : '<button class="btn small ghost bandbtn" title="Work out the chords and add chords + bass + beat">🎸 Band</button><button class="btn small ghost ansbtn" title="Compose an answer phrase to this melody">🎶 Answer</button>') +
         '<button class="btn small icon del" title="Delete">🗑</button>' +
       '</div>';
 
@@ -1310,6 +1312,10 @@ function renderTracks() {
     q('.barfrom').addEventListener('change', applyBars); q('.barto').addEventListener('change', applyBars);
     if (isMel) {
       q('.editn').addEventListener('click', () => openRoll(t));
+      if (q('.bandbtn')) {
+        q('.bandbtn').addEventListener('click', async () => { setStatus('building band…', 'busy'); try { await buildBand(null, { src: t, quiet: true }); } catch (e) { console.error(e); } setStatus('band added — press Play', 'ready'); });
+        q('.ansbtn').addEventListener('click', async () => { setStatus('composing answer…', 'busy'); try { chat.jam = null; await startJam(undefined, { src: t, quiet: true }); } catch (e) { console.error(e); } setStatus('answer added — press Play', 'ready'); });
+      }
       q('.repeat').addEventListener('click', e => { t.repeat = !t.repeat; e.target.classList.toggle('on', t.repeat); growBarsToFit(); rebuildAllParts(); drawTimeline(); });
       q('canvas.roll').addEventListener('click', () => openRoll(t));
       q('.pump').addEventListener('click', e => { t.pump = !t.pump; e.target.classList.toggle('on', t.pump); });
@@ -1356,6 +1362,23 @@ function buildDrumGrid(host, t) {
    6b. ADVISOR CHAT — talk, type or sing; ask for instruments, beats, a whole song.
    Understanding is rule-based (DSP.parseChat) so it works offline and for free.
 ===================================================================== */
+/* ----- taste profile: remembers (on this device only) what you keep vs. throw away ----- */
+const TASTE_KEY = 'melodize_taste';
+let tasteP = DSP.taste.empty();
+try { const j = JSON.parse(localStorage.getItem(TASTE_KEY) || 'null'); if (j && j.inst && j.style && j.bpm) tasteP = j; } catch (e) {}
+function tasteSave() { try { localStorage.setItem(TASTE_KEY, JSON.stringify(tasteP)); } catch (e) {} }
+function tasteBump(kind, key, amt) { DSP.taste.bump(tasteP, kind, key, amt); tasteSave(); }
+function tasteCtx() { return DSP.taste.weights(tasteP, 'inst'); }
+function tasteReward() {            // called when you export / save: everything on the board is something you kept
+  tracks.forEach(t => { if (t.type === 'melody' && !t.isBand) tasteBump('inst', t.instKey, 2); else if (t.type === 'drums' && t.styleId) tasteBump('style', t.styleId, 2); });
+  tasteBump('bpm', S.bpm, 1);
+}
+function tasteSummary() {
+  const i = DSP.taste.top(tasteP, 'inst', 1), st = DSP.taste.top(tasteP, 'style', 1), b = DSP.taste.top(tasteP, 'bpm', 1);
+  if (!i && !st && !b) return null;
+  return [i && ('the ' + ALL_INST[i].label.toLowerCase()), st && (STYLE_LABEL[st] + ' beats'), b && ('tempos around ' + b + ' BPM')].filter(Boolean).join(', ');
+}
+
 const STYLE_PRESET = { house:'House / EDM', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-Hop', dnb:'Drum & Bass',
   rock:'Rock (ride', pop:'Pop / Rock', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi' };
 const STYLE_LABEL = { house:'House', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-hop', dnb:'Drum & Bass', rock:'Rock', pop:'Pop', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi' };
@@ -1457,7 +1480,7 @@ async function addVoiceFromTake(quiet) {
   if (!quiet) say('Done — your real voice is now a track, lined up with the notes. Use headphones, and try Auto-mix to balance it with everything else.', { chips: [{ label: '▶ Play', say: 'play' }, { label: 'Auto-mix', say: 'mix it' }, { label: 'Make a beat', say: 'make a beat' }] });
 }
 function recommendReply(intro) {
-  const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre }).slice(0, 3);
+  const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre, taste: tasteCtx() }).slice(0, 3);
   const f = DSP.melodyFeatures(chat.take.secNotes);
   const ctxTxt = (chat.mood || chat.genre) ? ' for a ' + [chat.mood, chat.genre].filter(Boolean).join(' / ') + ' feel' : '';
   const names = ranked.map(r => ALL_INST[r.key].label);
@@ -1467,6 +1490,7 @@ function recommendReply(intro) {
       chips: [
         { label: '➕ Add the best one', fn: () => applyInstrument(ranked[0].key, ranked[0].octave) },
         { label: 'Make a beat for it', say: 'make a beat' },
+        { label: '🎸 Build a full band', say: 'build a band' }, { label: '🎶 Answer me', say: 'answer me' },
         { label: '🎙 Keep my real voice too', fn: () => addVoiceFromTake() },
         { label: 'Build me a full song', say: 'build me a full song' },
         { label: 'Make it sadder', say: 'make it sad' }, { label: 'More energetic', say: 'make it energetic' }, { label: 'Cinematic', say: 'cinematic' }
@@ -1485,6 +1509,7 @@ async function applyInstrument(key, octave) {
   }
   if (octave === undefined) { const r = DSP.recommendInstruments(chat.take.secNotes, {}).find(x => x.key === key); octave = r ? r.octave : 0; }
   await addMelodyTrack(key, chat.take.beatNotes.map(n => Object.assign({}, n)), { octave });
+  tasteBump('inst', key, 1);
   chat.pendingInstrument = null;
   const shift = octave ? ' (moved ' + (octave > 0 ? 'up' : 'down') + ' ' + Math.abs(octave) + ' octave' + (Math.abs(octave) > 1 ? 's' : '') + ' to fit)' : '';
   say('Done — your tune is now on ' + def.label + shift + '. Want a beat under it?', { chips: [
@@ -1504,6 +1529,7 @@ async function makeBeat(styleId, opts) {
   chat.wish.beat = undefined; chat.wish.style = undefined;
   opts = opts || {};
   styleId = styleId || inferStyle();
+  if (!styleId) { const fav = DSP.taste.top(tasteP, 'style', 2); if (fav && STYLE_PRESET[fav]) { styleId = fav; chat.lead = chat.lead || 'Going with your usual —'; } }
   if (!styleId) {
     say('Sure — what style of beat?', { chips: ['house','techno','trap','boombap','dnb','lofi','rock','disco','reggaeton'].map(id => ({ label: STYLE_LABEL[id], say: 'make a ' + STYLE_LABEL[id].toLowerCase() + ' beat' })) });
     return null;
@@ -1513,6 +1539,7 @@ async function makeBeat(styleId, opts) {
   if (!preset) { say("I don't have that style yet — try house, trap, hip-hop, lofi, rock or disco."); return null; }
   if (preset.bpm && !tracks.length) applyBpm(preset.bpm);
   const t = await addDrumTrack(makePattern(preset.spec), preset.kit);
+  t.styleId = styleId; tasteBump('style', styleId, 1);
   if (!opts.quiet) {
     say('Added a ' + preset.name + ' beat on the ' + KITS[preset.kit].label + ' at ' + S.bpm + ' BPM.', { chips: [
       { label: '▶ Play', say: 'play' }, { label: 'Add fills', say: 'add fills' }, { label: 'Give me a variation', say: 'give me a variation' }, { label: 'Different style', say: 'make a beat' } ] });
@@ -1522,7 +1549,7 @@ async function makeBeat(styleId, opts) {
 
 async function buildSong() {
   if (!chat.take) { say('Sing or hum me a melody first and I\'ll build a song around it.', { chips: [{ label: '🎤 Sing now', fn: () => chatSing('melody') }] }); return; }
-  const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre });
+  const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre, taste: tasteCtx() });
   const lead = ranked.find(r => ['bass','sub','wobble','acid'].indexOf(r.key) === -1) || ranked[0];
   await addMelodyTrack(lead.key, chat.take.beatNotes.map(n => Object.assign({}, n)), { octave: lead.octave });
   const leadTrack = tracks[tracks.length - 1];
@@ -1543,8 +1570,137 @@ async function buildSong() {
     speech: 'Your song starter is playing. Lead on ' + ALL_INST[lead.key].label + ', with a beat and a bass line.' });
 }
 
+
+/* =====================================================================
+   6b+. COMPOSER BRAIN WIRING: auto-band, jam partner, scene composer
+===================================================================== */
+const toSec = ns => ns.map(n => ({ midi: n.midi, start: n.startB * spb(), dur: n.durB * spb(), vel: n.vel }));
+const keyOfNotes = ns => { const k = DSP.detectKey(ns.map(n => ({ rawMidi: n.midi, dur: n.durB }))); return { root: k.root, mode: k.mode, name: k.name }; };
+const BAND_FROM_DRUM = { disco: 'house', reggaeton: 'pop', afro: 'pop', boombap: 'lofi', dnb: 'house', techno: 'house', bigroom: 'house' };
+const bandStyleOf = id => (DSP.BAND_STYLES[id] ? id : BAND_FROM_DRUM[id] || null);
+const currentMelody = () => tracks.slice().reverse().find(t => t.type === 'melody' && !t.isBand && !t.isPartner && BASSY.indexOf(t.instKey) === -1);
+
+async function ensureMelodyTrack(quiet) {
+  let src = currentMelody();
+  if (src) return src;
+  if (!chat.take) return null;
+  const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre, taste: tasteCtx() });
+  const lead = ranked.find(r => BASSY.indexOf(r.key) === -1) || ranked[0];
+  await addMelodyTrack(lead.key, chat.take.beatNotes.map(n => Object.assign({}, n)), { octave: lead.octave });
+  return tracks[tracks.length - 1];
+}
+async function buildBand(styleId, opts) {
+  opts = opts || {};
+  const src = opts.src || await ensureMelodyTrack();
+  if (!src) { if (!opts.quiet) say('Sing or hum me a melody first — I\'ll work out the chords and build a whole band around it.', { chips: [{ label: '🎤 Sing now', fn: () => chatSing('melody') }] }); return false; }
+  // replace an earlier band so repeated asks give a fresh arrangement instead of piling up
+  tracks.filter(t => t.isBand).forEach(t => removeTrack(t.id, true));
+  const key = keyOfNotes(src.notes);
+  const st = bandStyleOf(styleId) || bandStyleOf(inferStyle()) || bandStyleOf(DSP.taste.top(tasteP, 'style', 2)) || 'pop';
+  const res = DSP.autoBand(src.notes, key, st), def = res.parts.style;
+  let ci = (opts.harmony && ALL_INST[opts.harmony]) ? opts.harmony : def.chord;
+  if (ci === src.instKey) ci = ci === 'pad' ? 'piano' : 'pad';
+  await addMelodyTrack(ci, res.parts.chords, { octave: 0 });
+  const ct = tracks[tracks.length - 1]; ct.isBand = true; ct.role = 'chords';
+  await addMelodyTrack(def.bass, res.parts.bass, { octave: 0 });
+  const bt = tracks[tracks.length - 1]; bt.isBand = true; bt.role = 'bass';
+  if (st === 'house') { ct.pump = true; }
+  if (!lastDrum() && def.drums && !opts.noDrums) { const dt = await makeBeat(def.drums, { quiet: true }); if (dt) dt.isBand = true; }
+  autoMix();
+  tracks.forEach(t => { if (t.isBand && t.role === 'chords') { t.volume *= 0.72; t.rev = Math.max(t.rev, 0.2); applyTrackFx(t); } });
+  applyMix(); renderTracks();
+  tasteBump('style', st === 'pop' ? 'pop' : st, 0.5);
+  if (opts.quiet) return true;
+  await Tone.start(); startPlayback();
+  say('Your band is playing! I heard your tune in ' + key.name + ' and the chords that fit it best are ' + res.progression + ' (' + res.roman + '). I put chords on ' + ALL_INST[ci].label + ', a ' + ALL_INST[def.bass].label.toLowerCase() + ' line that follows them, and a ' + def.label.toLowerCase() + ' beat.\nWant a different feel?', {
+    speech: 'Your band is playing. The chords are ' + res.progression.replace(/–/g, ',') + '.',
+    chips: [{ label: 'Lo-fi version', say: 'band lofi' }, { label: 'House version', say: 'band house' }, { label: 'Cinematic version', say: 'band cinematic' }, { label: 'Rock version', say: 'band rock' },
+      { label: '🎶 Now answer me', say: 'answer me' }, { label: 'Arrange into a full song', say: 'arrange the song' }] });
+  return true;
+}
+
+async function jamAnswer(phrase, opts) {
+  opts = opts || {};
+  const src = chat.jam && chat.jam.src && tracks.indexOf(chat.jam.src) !== -1 ? chat.jam.src : currentMelody();
+  const key = keyOfNotes((src ? src.notes : phrase));
+  const ans = DSP.answerPhrase(phrase, key, { kind: opts.kind });
+  if (!ans.length) return null;
+  let partner = chat.jam && chat.jam.partner && tracks.indexOf(chat.jam.partner) !== -1 ? chat.jam.partner : null;
+  if (!partner) {
+    const ranked = chat.take ? DSP.recommendInstruments(chat.take.secNotes, { taste: tasteCtx() }).filter(r => r.key !== (src && src.instKey) && BASSY.indexOf(r.key) === -1) : [];
+    const pk = (ranked[0] && ranked[0].key) || (src && src.instKey === 'violin' ? 'flute' : 'violin');
+    await addMelodyTrack(pk, ans.map(n => Object.assign({}, n)), { octave: ALL_INST[pk].octave || 0 });
+    partner = tracks[tracks.length - 1]; partner.isPartner = true;
+  } else { partner.notes = partner.notes.concat(ans); buildPart(partner); }
+  growBarsToFit();
+  let endB = 0; ans.forEach(n => { endB = Math.max(endB, n.startB + n.durB); });
+  chat.jam = { src: src || chat.jam && chat.jam.src, partner, offsetB: Math.ceil(endB / 4 - 1e-6) * 4 };
+  renderTracks();
+  return { partner, ans };
+}
+async function startJam(kind, opts) {
+  opts = opts || {};
+  const src = opts.src || await ensureMelodyTrack();
+  if (!src) {
+    chat.afterSing = { jamStart: true, kind };
+    say(opts.quiet ? '' : "Let's jam! Sing or hum me a short phrase — about 2 bars — and I'll answer it.", { then: () => chatSing('melody') }); return false;
+  }
+  chat.jam = { src, partner: null, offsetB: 0 };
+  const r = await jamAnswer(src.notes, { kind });
+  if (!r) return false;
+  if (opts.quiet) return true;
+  await Tone.start(); startPlayback();
+  const pn = ALL_INST[r.partner.instKey].label;
+  say(kind === 'ending' ? 'I wrote an ending for your tune on ' + pn + ' — it lands on the home note so the song feels finished.' : 'Here\'s my answer on ' + pn + ' — same key, same rhythm feel, and it comes home to the tonic.\nYour turn: sing the next phrase and I\'ll answer again!', {
+    speech: kind === 'ending' ? 'I wrote an ending for your tune.' : 'Here is my answer. Your turn, sing the next phrase.',
+    chips: [{ label: '🎤 My turn', fn: () => { chat.afterSing = { jam: true }; chatSing('melody'); } }, { label: 'Try another answer', say: 'another answer' }, { label: 'End the tune', say: 'finish my tune' }, { label: '🎸 Add a band', say: 'build a band' }] });
+  return true;
+}
+async function continueJam(take) {   // the user just sang another phrase during a jam
+  const j = chat.jam, off = j.offsetB;
+  const nn = take.beatNotes.map(n => Object.assign({}, n, { startB: n.startB + off }));
+  j.src.notes = j.src.notes.concat(nn); buildPart(j.src);
+  const r = await jamAnswer(nn, {});
+  growBarsToFit(); renderTracks();
+  await Tone.start(); startPlayback();
+  say('Nice phrase! My reply is in. Keep going — or say “finish my tune” and I\'ll write an ending.', { chips: [{ label: '🎤 My turn', fn: () => { chat.afterSing = { jam: true }; chatSing('melody'); } }, { label: 'End the tune', say: 'finish my tune' }, { label: '🎸 Add a band', say: 'build a band' }] });
+}
+
+async function composeScene(recipe, text) {
+  const key = { root: recipe.root, mode: recipe.mode };
+  const had = currentMelody();
+  applyBpm(recipe.bpm);
+  chat.mood = recipe.mode === 'minor' ? (recipe.energy > 0.6 ? 'dark' : 'sad') : (recipe.energy > 0.6 ? 'energetic' : 'calm');
+  if (had) {                                     // use the tune they already sang
+    chat.lead = 'Let\'s give your tune that feeling.';
+    const ok = await buildBand(recipe.style, { harmony: recipe.harmony, quiet: true, noDrums: !recipe.drumStyle });
+    if (recipe.drumStyle && !lastDrum()) await makeBeat(recipe.drumStyle, { quiet: true });
+  } else {
+    tracks.slice().forEach(t => removeTrack(t.id, true)); chat.take = null; chat.jam = null;
+    applyBpm(recipe.bpm);
+    const motif = DSP.motifFromScene(key, recipe.energy, 2);
+    const ans = DSP.answerPhrase(motif, key, { kind: 'sequence' });
+    const melody = motif.concat(ans);
+    const leadKey = ALL_INST[recipe.lead] ? recipe.lead : 'piano';
+    await addMelodyTrack(leadKey, melody, { octave: ALL_INST[leadKey].octave || 0 });
+    await buildBand(recipe.style, { harmony: recipe.harmony, quiet: true, noDrums: true });
+    if (recipe.drumStyle) { const d = await makeBeat(recipe.drumStyle, { quiet: true }); if (d) d.isBand = true; }
+    applyBpm(recipe.bpm);
+  }
+  autoMix();
+  tracks.forEach(t => { if (t.type !== 'drums') { t.rev = Math.max(t.rev, Math.min(0.6, recipe.reverb * 0.6)); applyTrackFx(t); } });
+  tracks.forEach(t => { if (t.isBand && t.role === 'chords') t.volume *= 0.72; });
+  applyMix(); autoArrange();
+  await Tone.start(); startPlayback();
+  const keyName = DSP.NOTE_NAMES[recipe.root] + ' ' + recipe.mode;
+  say('“' + text.trim().replace(/[.!?]+$/, '') + '” → ' + recipe.mood + '. I picked ' + keyName + ', ' + recipe.bpm + ' BPM, ' + ALL_INST[ALL_INST[recipe.lead] ? recipe.lead : 'piano'].label.toLowerCase() + ' for the melody with a ' + (DSP.BAND_STYLES[recipe.style] || DSP.BAND_STYLES.pop).label.toLowerCase() + ' band' + (recipe.drumStyle ? ' and a ' + STYLE_LABEL[recipe.drumStyle].toLowerCase() + ' beat' : ', no drums') + (had ? '' : '. Everything is made from your words — no singing needed') + '.\nIt\'s 16 bars: the melody opens alone, then the band comes in.', {
+    speech: 'Here it is. ' + recipe.mood + ', ' + recipe.bpm + ' beats per minute.',
+    chips: [{ label: 'Make it different', say: 'make that again, different' }, { label: '🎶 Answer my tune', say: 'answer me' }, { label: 'Auto-mix', say: 'mix it' }, { label: 'Export it', say: 'export' }] });
+  chat.lastScene = text;
+}
+
 function clearAllTracks() {
-  stopPlayback(); tracks.slice().forEach(t => removeTrack(t.id)); chat.take = null;
+  stopPlayback(); tracks.slice().forEach(t => removeTrack(t.id, true)); chat.take = null; chat.jam = null;
   say('All clear — fresh start. Sing me something!', { chips: STARTER() });
 }
 
@@ -1562,6 +1718,8 @@ function suggestNext() {
   const out = [];
   if (!chat.take && !mel.length) { out.push({ label: '🎤 Sing a tune', fn: () => chatSing('melody') }, { label: '🥁 Beatbox a rhythm', fn: () => chatSing('beatbox') }, { label: 'Make a beat', say: 'make a beat' }, { label: 'Surprise me', say: 'surprise me' }); return out; }
   if (chat.take && !mel.length) out.push({ label: 'Which instrument suits it?', say: 'which instrument suits this' }, { label: 'Build me a full song', say: 'build me a full song' });
+  if (mel.some(t => !t.isBand && !t.isPartner) && !mel.some(t => t.isBand)) out.push({ label: '🎸 Build a band', say: 'build a band' });
+  if (mel.length && !mel.some(t => t.isPartner)) out.push({ label: '🎶 Answer me', say: 'answer me' });
   if (!hasDr) out.push({ label: 'Add a beat', say: 'make a beat' });
   if (mel.length && !hasBass && chat.take) out.push({ label: 'Add a bass line', say: 'add bass' });
   if (hasDr) out.push({ label: 'Add fills', say: 'add fills' }, { label: 'Give me a variation', say: 'give me a variation' });
@@ -1601,7 +1759,7 @@ async function respond(text) {
       chat.afterSing = { instrument: chat.wish.instrument, beat: !!(chat.wish.beat || chat.wish.style), style: chat.wish.style };
       say('Okay — I have it: your tune ' + wishText() + '. Go ahead and sing, I’m listening.', { then: () => chatSing('melody') }); return;
     }
-    if (chat.take) { const top = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre }).slice(0, 3);
+    if (chat.take) { const top = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre, taste: tasteCtx() }).slice(0, 3);
       say("Happy to — make it what? Pick an instrument, or tell me the style (like “on guitar with a trap beat”).", { chips: top.map(x => ({ label: 'On ' + ALL_INST[x.key].label, say: 'put it on ' + ALL_INST[x.key].label.toLowerCase() })).concat([{ label: 'Build a full song', say: 'build me a full song' }]) }); return; }
     say("Remind me what you'd like — for example “a guitar tune with a trap beat”. Then sing, and I'll build it from your voice.", { chips: suggestNext() }); return;
   }
@@ -1645,6 +1803,32 @@ async function respond(text) {
     say('Opening the note editor — tap to add notes, drag to move, drag the right edge to resize. Tap ✓ Done when finished.', { silent: true });
     closeChat(); openRoll(m); return;
   }
+  // ---- composer brain commands ----
+  if (/(forget|reset|clear|delete) (my |what you learned|the )?(taste|preferences?|favou?rites?|what you learned|profile)/.test(nt)) { tasteP = DSP.taste.empty(); tasteSave(); say("Done — I've forgotten what I learned about your taste. We start fresh.", { chips: suggestNext() }); return; }
+  if (/(what do you know about me|my taste|what do i like|what (do|did) you learn|my (usual|favou?rites?)|do you remember me)/.test(nt)) {
+    const sm = tasteSummary();
+    say(sm ? "So far I've noticed you like " + sm + '. I learn from what you keep (export, save, leave playing) and what you undo or delete — and it all stays on this device. Say “forget my taste” anytime to reset.' : "I haven't learned your taste yet — make a few things and keep the ones you like (export or save them) and I'll start noticing.", { chips: suggestNext() }); return;
+  }
+  if (chat.last && chat.last.action === 'scene' && r.again && chat.lastScene) {
+    const rc = DSP.sceneRecipe(chat.lastScene + ' zz' + Math.floor(Math.random() * 1e6)); if (rc) { chat.lead = 'Another take on it:'; await composeScene(rc, chat.lastScene); chat.last = { action: 'scene' }; return; }
+  }
+  const srec = DSP.sceneRecipe(text);
+  const sceneCue = /(feel(s|ing)? like|vibe|mood (of|for)|song about|music for|a song for|track for|soundtrack|something for|sounds? like|imagine|compose|write me (a|some)|create a (song|track|piece|tune|vibe)|make (me )?(a |some )?(song|track|music|piece|tune|vibe) (for|about|that)|(it|this|my tune|the song) (to )?(feel|sound) )/.test(nt);
+  if (srec && !r.instrument && !r.sing && !r.beatbox && !r.recommend && !r.fill && !r.variation && !r.play && !r.stop && !r.exportSong && !r.undo && !r.clearAll && !r.saveProject &&
+      (sceneCue || (srec.words.length >= 2 && !chat.take && !tracks.length)) && !(r.wantBeat && !sceneCue)) {
+    say('Love it — composing “' + text.trim().replace(/[.!?]+$/, '') + '”…', { silent: true, chips: [] });
+    await composeScene(srec, text); chat.last = { action: 'scene' }; return;
+  }
+  if (/(finish|end|wrap up|conclude|resolve) (my |the |this )?(tune|melody|phrase)|(write|give|add) (me |it )?an? ending/.test(nt)) { await startJam('ending'); chat.last = { action: 'jam' }; return; }
+  if (/((answer|respond to|reply to) (me|my|this|that|the)|call and response|jam( with me)?|your turn|trade (phrases|licks)|another answer|answer (it )?again|play (it )?back to me|answer me)/.test(nt) && !r.sing) {
+    if (/another answer|answer (it )?again/.test(nt) && chat.jam && chat.jam.partner) { const p0 = chat.jam.partner; removeTrack(p0.id, true); chat.jam.partner = null; }
+    await startJam(); chat.last = { action: 'jam' }; return;
+  }
+  if (/((build|make|add|create|give me|get|need|want)( me)?( a| the| some)?( full| backing)? (band|chords?|backing|accompaniment|harmony)|accompany|harmoni[sz]e|chord progression|what chords|play chords|full band|^ ?band (lofi|house|rock|trap|pop|cinematic|arp)|add (a )?bass ?line and chords)/.test(nt) && !r.sing) {
+    const bs = /cinematic|orchestral/.test(nt) ? 'cinematic' : /arpeggio| arp /.test(nt) ? 'arp' : (r.style || null);
+    chat.lead = pick(["Let's build a band.", 'Great idea — chords coming up.']);
+    await buildBand(bs); chat.last = { action: 'band' }; return;
+  }
   if (/(arrange|make (it|this) (a )?(full|longer|complete)|full arrangement|turn (it|this) into a song|extend (it|the song)|longer song|intro and|add an intro)/.test(nt) && !r.sing) {
     if (!autoArrange()) { say('Add a tune or a beat first and then I can arrange it into a full song.', { chips: suggestNext() }); return; }
     say('Arranged into 16 bars: your lead opens alone for 4 bars, then the drums and bass drop in, and your tune repeats to fill the song. You can change when each track plays with the “Bars” boxes on every track.', { chips: [{ label: '▶ Play', say: 'play' }, { label: 'Auto-mix', say: 'mix it' }, { label: 'Export it', say: 'export' }] });
@@ -1669,7 +1853,7 @@ async function respond(text) {
       await makeBeat(s); chat.last = { action: 'beat', style: s }; return;
     }
     if (chat.last.action === 'instrument' && chat.take) {
-      const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre }).filter(x => x.key !== chat.last.key && BASS_KEYS.indexOf(x.key) === -1);
+      const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre, taste: tasteCtx() }).filter(x => x.key !== chat.last.key && BASS_KEYS.indexOf(x.key) === -1);
       const nxt = ranked[Math.floor(Math.random() * Math.min(4, ranked.length))] || ranked[0];
       if (nxt) { const m = tracks.slice().reverse().find(t => t.type === 'melody'); if (m && m.instKey === chat.last.key) removeTrack(m.id); chat.lead = 'How about this one?'; await applyInstrument(nxt.key, nxt.octave); chat.last = { action: 'instrument', key: nxt.key }; return; }
     }
@@ -1918,6 +2102,8 @@ async function processChatRecording(kind, data, sr, bubble) {
     const cv = document.createElement('canvas'); cv.className = 'mini'; bubble.appendChild(cv);
     requestAnimationFrame(() => drawMini(cv, chat.take.beatNotes));
     if (chat.wantVoice) { chat.wantVoice = false; await addVoiceFromTake(true); }
+    if (after.jam && chat.jam && chat.jam.src && tracks.indexOf(chat.jam.src) !== -1) { await continueJam(chat.take); return; }
+    if (after.jamStart) { await ensureMelodyTrack(); await startJam(after.kind); return; }
     const wantInst = after.instrument || chat.pendingInstrument;
     if (wantInst) {
       await applyInstrument(wantInst);
@@ -1990,7 +2176,8 @@ function openChat() {
   $('#chatPage').style.display = 'flex'; document.body.style.overflow = 'hidden';
   if (!chat.started) {
     chat.started = true;
-    say("Hi! I'm your Melodize advisor. 🎶 Sing or hum me a tune and I'll tell you which instrument suits it — then I can play it on that instrument and build a beat under it. You can type, tap 🎙 to talk, or tap 🎤 to sing. What would you like to do?", { chips: STARTER(), speech: "Hi! I'm your Melodize advisor. Sing me a tune, or tell me what you'd like to make." });
+    const tsum = tasteSummary();
+    say("Hi! I'm your Melodize advisor. 🎶 Sing or hum a tune and I'll find the right instrument, build chords and a band around it, or answer you with a phrase of my own. You can also just describe a feeling — “rainy night in Tokyo” — and I'll compose it. You can type, tap 🎙 to talk, or tap 🎤 to sing." + (tsum ? "\nI remember you like " + tsum + "." : '') + " What would you like to do?", { chips: STARTER().concat([{ label: '🌧 Rainy night in Tokyo', say: 'make something that feels like a rainy night in tokyo' }]), speech: "Hi! I'm your Melodize advisor. Sing me a tune, or tell me what you'd like to make." });
   }
   setTimeout(() => { try { $('#chatText').focus(); } catch (e) {} }, 50);
 }
@@ -2243,6 +2430,7 @@ $('#midiBtn').addEventListener('click', () => {
 });
 $('#exportBtn').addEventListener('click', async () => {
   if (!tracks.length) { alert('Add at least one track before exporting.'); return; }
+  tasteReward();
   await Tone.start();
   stopPlayback();
   const btn = $('#exportBtn'), original = btn.textContent;
@@ -2270,6 +2458,7 @@ $('#exportBtn').addEventListener('click', async () => {
    8. SAVE / OPEN PROJECT
 ===================================================================== */
 $('#saveBtn').addEventListener('click', () => {
+  tasteReward();
   const data = { app:'melodize', version:2, settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize },
     tracks: tracks.map(t => {
       const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, repeat:!!t.repeat };
@@ -2288,7 +2477,7 @@ $('#loadFile').addEventListener('change', async e => {
     const data = JSON.parse(await file.text());
     if (data.app !== 'melodize') throw new Error('not a Melodize project');
     stopPlayback();
-    tracks.slice().forEach(t => removeTrack(t.id));
+    tracks.slice().forEach(t => removeTrack(t.id, true));
     const s = data.settings || {};
     S.bpm = s.bpm || 120; S.bars = s.bars || 8; S.keyRoot = s.keyRoot == null ? 'auto' : s.keyRoot; S.scale = s.scale || 'auto'; S.grid = s.grid == null ? 4 : s.grid;
     S.swing = s.swing || 0; S.humanize = s.humanize !== false;
