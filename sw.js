@@ -1,9 +1,9 @@
-// Melodize service worker v7
+// Melodize service worker v8
 // - App shell is precached (fresh from the network, bypassing the HTTP cache)
 // - HTML/JS/manifest: network-first, so updates show up as soon as you're online
 // - Everything else (Tone.js, instrument samples): cache-first, so it works offline after first use
 
-const CACHE_NAME = 'melodize-v7';
+const CACHE_NAME = 'melodize-v8';
 const APP_SHELL = [
   './',
   './index.html',

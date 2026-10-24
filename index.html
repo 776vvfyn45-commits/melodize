@@ -323,6 +323,7 @@
       <div class="slider-row">Master <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.85"></div>
       <div class="slider-row">Compression <input type="range" id="compAmt" min="0" max="1" step="0.01" value="0.4"></div>
       <div class="slider-row">Warmth <input type="range" id="warmth" min="-1" max="1" step="0.01" value="0"></div>
+      <button class="btn ghost" id="autoMixBtn" title="Balance levels, pan and reverb automatically">✨ Auto-mix</button>
       <button class="btn ghost" id="exportBtn">⬇ Export song (.wav)</button>
     </div>
     <div class="prog"><div id="progFill"></div></div>
@@ -623,7 +624,7 @@ const songLen = () => S.bars * 4 * spb();
 function buildMasterChain() {
   masterGain = new Tone.Gain(0.85);
   eq = new Tone.EQ3({ low: 0, mid: 0, high: 0 });
-  compressor = new Tone.Compressor({ threshold: -22, ratio: 2.2, attack: 0.01, release: 0.2 });
+  compressor = new Tone.Compressor({ threshold: -20, ratio: 3, attack: 0.02, release: 0.25 });   // gentle bus 'glue'
   limiter = new Tone.Limiter(-1);
   masterGain.chain(eq, compressor, limiter, Tone.Destination);
   recorder = new Tone.Recorder();
@@ -638,12 +639,29 @@ function buildMasterChain() {
 function makeTrackChain() {
   const duck = new Tone.Gain(1), vol = new Tone.Gain(0.85), pan = new Tone.Panner(0);
   const rev = new Tone.Gain(0), dly = new Tone.Gain(0);
-  duck.connect(vol); vol.connect(pan);
+  const hp = new Tone.Filter(100, 'highpass');       // keeps low-end mud out of everything except bass/kick
+  duck.connect(hp); hp.connect(vol); vol.connect(pan);
   pan.connect(masterGain); pan.connect(rev); pan.connect(dly);
   rev.connect(reverbBus); dly.connect(delayBus);
-  return { duck, vol, pan, rev, dly };
+  return { duck, hp, vol, pan, rev, dly };
 }
 
+/* ----- auto-mix: sensible levels, low-cut, stereo spread and reverb by role ----- */
+const BASSY = ['bass','sub','wobble','acid'], LOWISH = ['cello','trombone','horn','organ','harmonium'], PADDY = ['pad','organ','harmonium','cello','harp'];
+const TRIM = { supersaw: 0.62, wobble: 0.6, acid: 0.7, chip: 0.62, sub: 0.9, pluck: 0.85, pad: 0.8, bell: 0.85, eguitar: 0.8, trumpet: 0.75, sax: 0.8, xylo: 0.8 };
+function hpFor(t) { return t.type === 'drums' ? 28 : BASSY.indexOf(t.instKey) !== -1 ? 30 : LOWISH.indexOf(t.instKey) !== -1 ? 60 : 110; }
+function autoMix() {
+  let leadN = 0, padN = 0;
+  tracks.forEach(t => {
+    t.chain.hp.frequency.value = hpFor(t);
+    if (t.type === 'drums') { t.volume = 0.8; t.pan = 0; t.rev = 0.05; t.dly = 0; }
+    else if (BASSY.indexOf(t.instKey) !== -1) { t.volume = 0.8 * (TRIM[t.instKey] || 1); t.pan = 0; t.rev = 0; t.dly = 0; }
+    else if (PADDY.indexOf(t.instKey) !== -1) { t.volume = 0.52 * (TRIM[t.instKey] || 1); t.pan = (padN++ % 2 ? 0.3 : -0.3); t.rev = 0.3; t.dly = 0; }
+    else { t.volume = 0.76 * (TRIM[t.instKey] || 1); t.pan = leadN === 0 ? 0 : (leadN % 2 ? 0.28 : -0.28); leadN++; t.rev = 0.14; t.dly = ['pluck', 'bell', 'chip', 'supersaw', 'xylo'].indexOf(t.instKey) !== -1 ? 0.07 : 0.03; }
+    applyTrackFx(t);
+  });
+  applyMix(); renderTracks();
+}
 function anySolo() { return tracks.some(t => t.solo); }
 function audible(t) { return anySolo() ? t.solo : !t.muted; }
 function applyMix() {
@@ -823,6 +841,40 @@ function drawMeter(level) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/* Raw sample capture (no MediaRecorder): exact audio, no codec smearing, same on iPhone/Android/desktop */
+let recCap = null, recMeta = { playAlong: false, countIn: false };
+async function openPcmCapture(stream) {
+  const ctx = Tone.context.rawContext, src = ctx.createMediaStreamSource(stream);
+  const chunks = []; let node = null;
+  const sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
+  try {
+    if (ctx.audioWorklet && window.AudioWorkletNode) {
+      if (!ctx.__melodizeRec) {
+        const code = "class R extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true;}}registerProcessor('melodize-rec',R);";
+        const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+        await ctx.audioWorklet.addModule(url); ctx.__melodizeRec = true;
+      }
+      node = new AudioWorkletNode(ctx, 'melodize-rec', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
+      node.port.onmessage = e => chunks.push(e.data);
+    }
+  } catch (e) { node = null; }
+  if (!node) {                                   // older browsers
+    node = ctx.createScriptProcessor(4096, 1, 1);
+    node.onaudioprocess = e => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+  }
+  src.connect(node); node.connect(sink);
+  return {
+    sr: ctx.sampleRate,
+    stop() {
+      try { src.disconnect(node); } catch (e) {} try { node.disconnect(); } catch (e) {} try { sink.disconnect(); } catch (e) {}
+      if (node.port) node.port.onmessage = null; node.onaudioprocess = null;
+      let n = 0; chunks.forEach(c => { n += c.length; });
+      const out = new Float32Array(n); let o = 0; chunks.forEach(c => { out.set(c, o); o += c.length; });
+      return out;
+    }
+  };
+}
+
 async function startRecording() {
   await Tone.start();
   try {
@@ -864,12 +916,8 @@ async function startRecording() {
     countingIn = false;
   }
 
-  mediaChunks = [];
-  const mimeType = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '';
-  mediaRecorder = new MediaRecorder(recStream, mimeType ? { mimeType } : undefined);
-  mediaRecorder.ondataavailable = e => { if (e.data.size) mediaChunks.push(e.data); };
-  mediaRecorder.onstop = onRecordingStopped;
-  mediaRecorder.start();
+  recMeta = { playAlong, countIn: $('#countIn').checked, hadTracks: tracks.length > 0 };
+  recCap = await openPcmCapture(recStream);
   if (playAlong) Tone.Transport.start();
   recStartTime = Date.now();
   recTimerInt = setInterval(() => { recTimer.textContent = fmtTime((Date.now()-recStartTime)/1000); }, 200);
@@ -879,27 +927,26 @@ function stopRecording() {
   countingIn = false;
   Tone.Transport.stop();
   Tone.Transport.loop = wasLooping;
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  const cap = recCap; recCap = null;
+  const pcm = cap ? cap.stop() : null;
   if (recStream) recStream.getTracks().forEach(t => t.stop());
   clearInterval(recTimerInt); cancelAnimationFrame(meterRaf);
   recBtn.innerHTML = '<span class="rec-dot"></span> Start recording';
   recBtn.classList.remove('danger');
   recTimer.textContent = '00:00';
   meterCanvas.getContext('2d').clearRect(0,0,meterCanvas.width,meterCanvas.height);
+  if (pcm && pcm.length > cap.sr * 0.3) onRecordingStopped(pcm, cap.sr);
+  else if (pcm) { recInfo.textContent = 'That was too short — hold the button a little longer and sing.'; }
 }
 recBtn.addEventListener('click', () => {
-  if ((mediaRecorder && mediaRecorder.state === 'recording') || countingIn) stopRecording();
+  if (recCap || countingIn) stopRecording();
   else startRecording();
 });
 
-async function onRecordingStopped() {
+async function onRecordingStopped(data, sr) {
   analyzingEl.style.display = 'flex';
   await sleep(40);                       // let the spinner paint before the heavy DSP
   try {
-    const blob = new Blob(mediaChunks, { type: mediaChunks[0] ? mediaChunks[0].type : 'audio/webm' });
-    const arrayBuf = await blob.arrayBuffer();
-    const audioBuf = await Tone.context.rawContext.decodeAudioData(arrayBuf.slice(0));
-    const data = audioBuf.getChannelData(0), sr = audioBuf.sampleRate;
     if (S.mode === 'beatbox') {
       const hits = DSP.detectDrumHits(data, sr);
       if (!hits.length) { alert("Didn't catch any beats — try beatboxing a bit louder and closer to the mic."); }
@@ -912,10 +959,15 @@ async function onRecordingStopped() {
         recInfo.textContent = 'Caught ' + hits.length + ' hits — ' + Object.keys(counts).map(k => counts[k] + ' ' + VOICE_LABEL[k].toLowerCase()).join(', ') + '. Tap the grid to fix any step.';
       }
     } else {
+      const ctxL = Tone.context.rawContext;
+      const latency = recMeta.playAlong ? Math.min(0.25, (ctxL.baseLatency || 0) + (ctxL.outputLatency || 0)) : 0;
+      const free = !recMeta.countIn && !recMeta.playAlong;       // nothing to stay in time with → follow the singer
       const res = DSP.transcribe(data, sr, {
-        bpm: S.bpm, grid: S.grid || 0, scale: S.scale,
+        bpm: S.bpm, grid: S.grid || 0, scale: S.scale, latency,
+        trimLead: free, autoTempo: free && !recMeta.hadTracks,
         keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot
       });
+      if (res.tempo && res.bpm && res.bpm !== S.bpm) applyBpm(res.bpm);
       if (!res.notes.length) {
         alert("Didn't catch a clear melody there — try humming a little louder, closer to the mic, in a quiet room.");
       } else {
@@ -923,7 +975,7 @@ async function onRecordingStopped() {
         await addMelodyTrack(S.instrument, notes);
         const keyTxt = res.key ? res.key.name : '—';
         const tune = res.tuningCents ? (', tuning corrected ' + (res.tuningCents > 0 ? '+' : '') + res.tuningCents + '¢') : '';
-        recInfo.textContent = 'Caught ' + res.notes.length + ' notes · key ≈ ' + keyTxt + tune + '.';
+        recInfo.textContent = 'Caught ' + res.notes.length + ' notes · key ≈ ' + keyTxt + tune + (res.tempo ? ' · tempo matched to your singing: ' + res.bpm + ' BPM' : '') + '.';
       }
     }
   } catch (err) {
@@ -961,6 +1013,8 @@ async function addMelodyTrack(instKey, notes, saved) {
     t.pump = !!saved.pump; t.muted = !!saved.muted; t.solo = !!saved.solo;
   }
   t.inst = await createInstrument(instKey);
+  t.chain.hp.frequency.value = hpFor(t);
+  if (!saved && TRIM[instKey]) t.volume = 0.85 * TRIM[instKey];
   t.inst.out.connect(t.chain.duck);
   applyTrackFx(t);
   tracks.push(t);
@@ -1299,6 +1353,7 @@ async function buildSong() {
   const src = longNotes.length >= 3 ? longNotes : chat.take.beatNotes;
   await addMelodyTrack(bassKey, src.map(n => Object.assign({}, n, { midi: n.midi + shift, vel: (n.vel || 0.85) * 0.85 })), { octave: 0 });
   if (['house','techno','bigroom'].indexOf(style) !== -1 || chat.genre === 'edm') { leadTrack.pump = true; renderTracks(); }
+  autoMix();
   await Tone.start(); startPlayback();
   say('Song starter is playing! I put your tune on ' + ALL_INST[lead.key].label + ', added ' + (beat ? 'a ' + STYLE_LABEL[style] + ' beat' : 'it over your existing beat') + ' and a ' + ALL_INST[bassKey].label.toLowerCase() + ' line underneath' + (leadTrack.pump ? ', with the lead pumping on every kick' : '') + '.\nFine-tune anything in the studio, or ask me for fills, a variation, or another instrument.', { chips: [
     { label: 'Add fills', say: 'add fills' }, { label: 'Give me a variation', say: 'give me a variation' }, { label: '■ Stop', say: 'stop' }, { label: 'Export it', say: 'export' } ],
@@ -1586,7 +1641,7 @@ refreshAiBtn();
 /* ----- singing / beatboxing inside the chat ----- */
 async function chatSing(kind) {
   if (chat.recording) { finishChatRecording(); return; }
-  if (mediaRecorder && mediaRecorder.state === 'recording') { say('The studio recorder is running — stop it first.'); return; }
+  if (recCap) { say('The studio recorder is running — stop it first.'); return; }
   if (chat.singing) return;
   chat.singing = true; stopListen();
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
@@ -1614,31 +1669,28 @@ async function chatSing(kind) {
     c2.fillStyle = 'rgba(0,0,0,.3)'; c2.fillRect(0, 0, 240, 24); c2.fillStyle = '#fff'; c2.fillRect(0, 6, Math.min(240, Math.sqrt(sum / arr.length) * 3 * 240), 12);
     raf = requestAnimationFrame(loop);
   })();
-  const chunks = [], mime = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm')) ? 'audio/webm' : '';
-  const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-  mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
-  mr.onstop = () => processChatRecording(kind, chunks, bubble);
-  mr.start();
+  const cap = await openPcmCapture(stream);
   const timer = setTimeout(() => { if (chat.recording) finishChatRecording(); }, 45000);
-  chat.recording = { kind, stream, mr, raf, timer, bubble, kill: () => { alive = false; } };
+  chat.recording = { kind, stream, cap, raf, timer, bubble, kill: () => { alive = false; } };
   const sb = $('#chatSing'); sb.classList.add('live'); sb.textContent = '■ Stop';
 }
 function finishChatRecording() {
   const rc = chat.recording; if (!rc) return;
   chat.recording = null;
   clearTimeout(rc.timer); cancelAnimationFrame(rc.raf); if (rc.kill) rc.kill();
-  try { if (rc.mr.state !== 'inactive') rc.mr.stop(); } catch (e) {}
+  let pcm = new Float32Array(0);
+  try { pcm = rc.cap.stop(); } catch (e) {}
   rc.stream.getTracks().forEach(t => t.stop());
   const sb = $('#chatSing'); sb.classList.remove('live'); sb.textContent = '🎤 Sing';
   setChips([]);
+  processChatRecording(rc.kind, pcm, rc.cap.sr, rc.bubble);
 }
-async function processChatRecording(kind, chunks, bubble) {
+async function processChatRecording(kind, data, sr, bubble) {
   chat.singing = false;
   try {
-    const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : 'audio/webm' });
-    const url = URL.createObjectURL(blob);
-    const audioBuf = await Tone.context.rawContext.decodeAudioData((await blob.arrayBuffer()).slice(0));
-    const data = audioBuf.getChannelData(0), sr = audioBuf.sampleRate;
+    if (data.length < sr * 0.4) { bubble.innerHTML = ''; const l0 = document.createElement('div'); l0.className = 'txt'; l0.textContent = '🎤 (too short)'; bubble.appendChild(l0);
+      say("I barely heard anything — try again a bit longer and closer to the mic.", { chips: [{ label: '🎤 Try again', fn: () => chatSing(kind) }] }); return; }
+    const url = URL.createObjectURL(new Blob([DSP.encodeWav([data], sr)], { type: 'audio/wav' }));
     bubble.innerHTML = '';
     const lbl = document.createElement('div'); lbl.className = 'txt'; bubble.appendChild(lbl);
     const au = document.createElement('audio'); au.controls = true; au.src = url; bubble.appendChild(au);
@@ -1654,12 +1706,14 @@ async function processChatRecording(kind, chunks, bubble) {
       say('Got it — ' + hits.length + ' hits (' + Object.keys(counts).map(k => counts[k] + ' ' + VOICE_LABEL[k].toLowerCase()).join(', ') + ') turned into a drum track. You can fix any step in the studio grid.', { chips: [{ label: '▶ Play', say: 'play' }, { label: '🎤 Now sing a melody', fn: () => chatSing('melody') }] });
       return;
     }
-    const res = DSP.transcribe(data, sr, { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot });
+    const res = DSP.transcribe(data, sr, { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot, trimLead: true, autoTempo: !tracks.length });
+    const tempoMsg = (res.tempo && res.bpm && res.bpm !== S.bpm) ? res.bpm : null;
+    if (tempoMsg) applyBpm(tempoMsg);
     lbl.textContent = '🎤 My tune';
     if (res.notes.length < 2) { say("I couldn't catch a clear melody — try humming a bit louder and a bit longer, in a quiet spot.", { chips: [{ label: '🎤 Try again', fn: () => chatSing('melody') }] }); return; }
     chat.take = { secNotes: res.notes, key: res.key ? res.key.name : null, audioUrl: url,
       beatNotes: res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel })) };
-    lbl.textContent = '🎤 My tune — ' + res.notes.length + ' notes' + (res.key ? ' · ' + res.key.name : '');
+    lbl.textContent = '🎤 My tune — ' + res.notes.length + ' notes' + (res.key ? ' · ' + res.key.name : '') + (tempoMsg ? ' · ' + tempoMsg + ' BPM' : '');
     const cv = document.createElement('canvas'); cv.className = 'mini'; bubble.appendChild(cv);
     requestAnimationFrame(() => drawMini(cv, chat.take.beatNotes));
     const wantInst = after.instrument || chat.pendingInstrument;
@@ -1794,6 +1848,7 @@ function download(blob, name) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+$('#autoMixBtn').addEventListener('click', () => { if (!tracks.length) { alert('Add a track first.'); return; } autoMix(); setStatus('mixed', 'ready'); });
 $('#exportBtn').addEventListener('click', async () => {
   if (!tracks.length) { alert('Add at least one track before exporting.'); return; }
   await Tone.start();
@@ -1810,6 +1865,7 @@ $('#exportBtn').addEventListener('click', async () => {
   try {
     const buf = await Tone.context.rawContext.decodeAudioData(await recording.arrayBuffer());
     const chans = []; for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
+    DSP.normalizeLoudness(chans, -16, -1);
     download(new Blob([DSP.encodeWav(chans, buf.sampleRate)], { type: 'audio/wav' }), 'melodize-song.wav');
   } catch (e) {
     console.warn('WAV conversion failed, saving original', e);

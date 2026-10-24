@@ -397,12 +397,112 @@ function quantizeNotes(notes, bpm, stepsPerBeat) {
   return clean;
 }
 
+/* ---------- loudness: bring a finished mix to a consistent level without clipping ---------- */
+function normalizeLoudness(chans, targetRmsDb, peakCeilDb) {
+  let sum = 0, n = 0, peak = 0;
+  for (const ch of chans) for (let i = 0; i < ch.length; i++) { const v = ch[i]; sum += v * v; n++; const a = Math.abs(v); if (a > peak) peak = a; }
+  if (!n || peak < 1e-5) return 1;
+  // measure RMS only over the audible part so silence/tails don't drag the average down
+  let sum2 = 0, n2 = 0; const gate = peak * 0.03;
+  for (const ch of chans) for (let i = 0; i < ch.length; i++) { const v = ch[i]; if (Math.abs(v) > gate) { sum2 += v * v; n2++; } }
+  const rmsDb = 10 * Math.log10((sum2 / Math.max(1, n2)) + 1e-12);
+  let gain = Math.pow(10, (targetRmsDb - rmsDb) / 20);
+  const maxGain = Math.pow(10, peakCeilDb / 20) / peak;
+  gain = Math.min(gain, maxGain, 8);
+  if (gain < 0.25) gain = 0.25;
+  for (const ch of chans) for (let i = 0; i < ch.length; i++) ch[i] *= gain;
+  return gain;
+}
+
+/* ---------- note clean-up: sharper onsets, fewer ghost / split notes ---------- */
+function energyEnvelope(data, sr, blockSec) {
+  const block = Math.max(16, Math.round(sr * (blockSec || 0.004))), nb = Math.floor(data.length / block);
+  const env = new Float64Array(nb);
+  for (let b = 0; b < nb; b++) { let s = 0; for (let i = 0; i < block; i++) { const v = data[b * block + i]; s += v * v; } env[b] = Math.sqrt(s / block); }
+  return { env, dt: block / sr };
+}
+function refineNotes(segs, data, sr) {
+  if (!segs.length) return segs;
+  const E = energyEnvelope(data, sr, 0.004), env = E.env, dt = E.dt;
+  const at = t => Math.max(0, Math.min(env.length - 1, Math.round(t / dt)));
+  const peakIn = (a, b) => { let m = 0; for (let i = at(a); i <= at(b); i++) if (env[i] > m) m = env[i]; return m; };
+  const minIn = (a, b) => { let m = Infinity; for (let i = at(a); i <= at(b); i++) if (env[i] < m) m = env[i]; return m; };
+  let out = segs.map(n => Object.assign({}, n));
+  // 1) pull each start back to the true energy onset (pitch tracking only locks on ~30-50 ms late)
+  out.forEach((n, idx) => {
+    const prevEnd = idx ? out[idx - 1].start + out[idx - 1].dur : 0;
+    const lo = Math.max(prevEnd, n.start - 0.07), pk = peakIn(n.start, Math.min(n.start + n.dur, n.start + 0.15));
+    if (!pk) return;
+    let k = at(n.start);
+    while (k > at(lo) && env[k - 1] > pk * 0.22) k--;
+    const t = k * dt;
+    if (t < n.start) { n.dur += n.start - t; n.start = t; }
+  });
+  // 2) ghost notes: very short AND very quiet next to the loudest part
+  const gmax = Math.max.apply(null, out.map(n => peakIn(n.start, n.start + n.dur)));
+  out = out.filter(n => !(n.dur < 0.13 && peakIn(n.start, n.start + n.dur) < gmax * 0.18));
+  // 3) octave blips / single-note glitches: short note far from both neighbours
+  out = out.filter((n, i) => {
+    const p = out[i - 1], q = out[i + 1];
+    if (n.dur < 0.16 && p && q && Math.abs(n.rawMidi - p.rawMidi) >= 6 && Math.abs(n.rawMidi - q.rawMidi) >= 6) return false;
+    return true;
+  });
+  // 4) heal splits: same pitch separated by a hole where the energy never really dipped
+  const merged = [];
+  for (const n of out) {
+    const p = merged[merged.length - 1];
+    if (p && Math.abs(Math.round(p.rawMidi) - Math.round(n.rawMidi)) === 0 && n.start - (p.start + p.dur) < 0.09) {
+      const gapMin = minIn(p.start + p.dur * 0.7, n.start + 0.02);
+      const lowerPeak = Math.min(peakIn(p.start, p.start + p.dur), peakIn(n.start, n.start + n.dur));
+      if (gapMin > lowerPeak * 0.55) { p.dur = n.start + n.dur - p.start; p.vel = Math.max(p.vel, n.vel); continue; }
+    }
+    // a very short note between two same-pitch notes is a wobble, absorb it
+    merged.push(n);
+  }
+  const final = [];
+  for (let i = 0; i < merged.length; i++) {
+    const n = merged[i], p = final[final.length - 1], q = merged[i + 1];
+    if (p && q && n.dur < 0.1 && Math.round(p.rawMidi) === Math.round(q.rawMidi) && Math.abs(n.rawMidi - p.rawMidi) <= 2.5) {
+      p.dur = q.start + q.dur - p.start; i++; continue;
+    }
+    final.push(n);
+  }
+  return final;
+}
+
+/* ---------- tempo from the way someone sang (onset times, seconds) ---------- */
+function estimateTempo(onsets) {
+  if (!onsets || onsets.length < 4) return null;
+  const t0 = onsets[0], ts = onsets.map(t => t - t0);
+  let best = null, scores = [];
+  for (let bpm = 60; bpm <= 180; bpm += 0.5) {
+    const grid = 60 / bpm / 2;                          // eighth-note grid
+    let s = 0;
+    for (const t of ts) s += Math.cos(2 * Math.PI * t / grid);
+    s /= ts.length;
+    const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 100) / 0.45, 2));
+    const score = s * 0.8 + prior * 0.2;
+    scores.push(s);
+    if (!best || score > best.score) best = { bpm, score, fit: s };
+  }
+  if (!best || best.fit < 0.55) return null;          // onsets don't line up with any steady pulse
+  return { bpm: Math.round(best.bpm), fit: Math.round(best.fit * 100) / 100 };
+}
+
 /* ---------- full voice -> notes pipeline ---------- */
 function transcribe(data, sampleRate, opts) {
   opts = opts || {};
   const tracked = trackPitch(data, sampleRate, opts);
   const tuning = opts.autoTune === false ? 0 : estimateTuningOffset(tracked.frames);
   let segs = segmentNotes(tracked.frames, tracked.hopSec, tuning).filter(n => n.dur >= (opts.minNote || 0.07));
+  if (opts.refine !== false) segs = refineNotes(segs, data, sampleRate).filter(n => n.dur >= (opts.minNote || 0.07));
+  let tempoEst = null;
+  if (opts.autoTempo && segs.length >= 4) {
+    tempoEst = estimateTempo(segs.map(n => n.start));
+    if (tempoEst) opts = Object.assign({}, opts, { bpm: tempoEst.bpm });
+  }
+  if (opts.trimLead && segs.length) { const t0 = segs[0].start; segs.forEach(n => { n.start -= t0; }); }
+  if (opts.latency) segs.forEach(n => { n.start = Math.max(0, n.start - opts.latency); });
   let key = segs.length ? detectKey(segs) : null;
   let root = null;
   let scaleName = opts.scale;
@@ -428,7 +528,7 @@ function transcribe(data, sampleRate, opts) {
   }));
   // merge consecutive identical pitches that touch (tiny gaps) only when no articulation dip split them
   if (opts.bpm && opts.grid) notes = quantizeNotes(notes, opts.bpm, opts.grid);
-  return { notes, key, tuningCents: Math.round(tuning * 100), gate: tracked.gate };
+  return { notes, key, tuningCents: Math.round(tuning * 100), gate: tracked.gate, tempo: tempoEst, bpm: opts.bpm || null };
 }
 
 /* ---------- beatbox: detect drum hits & classify (kick / snare / hat / open hat) ---------- */
@@ -772,6 +872,6 @@ function extraChat(n, raw, r) {
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, detectDrumHits, hitsToPattern, encodeWav,
+  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, detectDrumHits, hitsToPattern, encodeWav,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });
