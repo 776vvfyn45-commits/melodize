@@ -924,8 +924,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 /* Raw sample capture (no MediaRecorder): exact audio, no codec smearing, same on iPhone/Android/desktop */
 let recCap = null, recMeta = { playAlong: false, countIn: false };
+let capCtx = null;      // a plain browser AudioContext just for capture (Tone's wrapper context has no ScriptProcessor / worklet nodes)
+function getCapCtx() {
+  if (!capCtx || capCtx.state === 'closed') { const AC = window.AudioContext || window.webkitAudioContext; capCtx = new AC(); }
+  try { if (capCtx.state === 'suspended') capCtx.resume(); } catch (e) {}
+  return capCtx;
+}
 async function openPcmCapture(stream) {
-  const ctx = Tone.context.rawContext, src = ctx.createMediaStreamSource(stream);
+  const ctx = getCapCtx();
+  try { if (ctx.state === 'suspended') await ctx.resume(); } catch (e) {}
+  const src = ctx.createMediaStreamSource(stream);
   const chunks = []; let node = null;
   const sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
   try {
@@ -957,6 +965,7 @@ async function openPcmCapture(stream) {
 }
 
 async function startRecording() {
+  getCapCtx();                       // create/resume inside the tap so iPhone allows it
   await Tone.start();
   try {
     // Browser "voice call" processing wrecks pitch accuracy, so everything is switched OFF here.
@@ -998,7 +1007,12 @@ async function startRecording() {
   }
 
   recMeta = { playAlong, countIn: $('#countIn').checked, hadTracks: tracks.length > 0 };
-  recCap = await openPcmCapture(recStream);
+  try { recCap = await openPcmCapture(recStream); }
+  catch (e) {
+    console.error(e); recCap = null;
+    alert('Could not start the recorder on this device: ' + (e && e.message ? e.message : e));
+    stopRecording(); return;
+  }
   if (playAlong) Tone.Transport.start();
   recStartTime = Date.now();
   recTimerInt = setInterval(() => { recTimer.textContent = fmtTime((Date.now()-recStartTime)/1000); }, 200);
@@ -1017,7 +1031,7 @@ function stopRecording() {
   recTimer.textContent = '00:00';
   meterCanvas.getContext('2d').clearRect(0,0,meterCanvas.width,meterCanvas.height);
   if (pcm && pcm.length > cap.sr * 0.3) onRecordingStopped(pcm, cap.sr);
-  else if (pcm) { recInfo.textContent = 'That was too short — hold the button a little longer and sing.'; }
+  else if (pcm) { recInfo.textContent = pcm.length ? 'That was too short — record a little longer and sing.' : 'Nothing was captured from the microphone — please allow mic access, close other apps using it, and try again.'; }
 }
 recBtn.addEventListener('click', () => {
   if (recCap || countingIn) stopRecording();
@@ -1828,7 +1842,7 @@ async function chatSing(kind) {
   if (chat.recording) { finishChatRecording(); return; }
   if (recCap) { say('The studio recorder is running — stop it first.'); return; }
   if (chat.singing) return;
-  chat.singing = true; stopListen();
+  chat.singing = true; stopListen(); getCapCtx();
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
   await Tone.start();
   let stream;
@@ -1854,7 +1868,9 @@ async function chatSing(kind) {
     c2.fillStyle = 'rgba(0,0,0,.3)'; c2.fillRect(0, 0, 240, 24); c2.fillStyle = '#fff'; c2.fillRect(0, 6, Math.min(240, Math.sqrt(sum / arr.length) * 3 * 240), 12);
     raf = requestAnimationFrame(loop);
   })();
-  const cap = await openPcmCapture(stream);
+  let cap;
+  try { cap = await openPcmCapture(stream); }
+  catch (e) { console.error(e); chat.singing = false; stream.getTracks().forEach(t => t.stop()); bubble.remove(); say("I couldn't start recording on this device (" + (e && e.message ? e.message : 'unknown error') + ').', { chips: [] }); return; }
   const timer = setTimeout(() => { if (chat.recording) finishChatRecording(); }, 45000);
   chat.recording = { kind, stream, cap, raf, timer, bubble, kill: () => { alive = false; } };
   const sb = $('#chatSing'); sb.classList.add('live'); sb.textContent = '■ Stop';
