@@ -233,6 +233,17 @@
   .track .ti svg{width:24px;height:24px}
   .adv-card .ai{color:var(--accent)}.adv-card .ai svg{width:24px;height:24px}
   .empty .big svg{width:42px;height:42px;color:var(--sub);opacity:.6}
+
+  .mastering{margin:12px 0 4px;padding:12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.02)}
+  .mviz canvas{width:100%;height:110px;border-radius:10px;background:#0a0f1a;display:block}
+  .mread{display:flex;gap:18px;flex-wrap:wrap;font-size:.76rem;color:var(--sub);margin-top:6px;font-variant-numeric:tabular-nums}
+  .mread span{min-width:110px}
+  .chrow{border-top:1px dashed var(--line);margin-top:6px}
+  .roll-vel{display:flex;border-top:1px solid var(--line);background:#0b0f18;flex:0 0 auto}
+  .rv-label{flex:0 0 46px;font-size:.6rem;color:var(--sub);writing-mode:vertical-rl;transform:rotate(180deg);text-align:center;padding:4px 0}
+  .rv-scroll{flex:1;overflow:hidden;min-width:0}
+  .rv-scroll canvas{display:block;height:64px;touch-action:none;cursor:ns-resize}
+  .btn.small.on{border-color:var(--accent);color:var(--accent)}
 </style>
 </head>
 <body>
@@ -292,12 +303,18 @@
     <button class="btn small" id="rollOctDn">−8va</button>
     <button class="btn small" id="rollOctUp">+8va</button>
     <button class="btn small" id="rollQ">⌗ Quantize</button>
+    <label class="mini" style="font-size:.75rem;color:var(--sub)">Strength <select id="rollQStr"><option value="1">100%</option><option value="0.75">75%</option><option value="0.5">50%</option><option value="0.25">25%</option></select></label>
+    <button class="btn small" id="rollHum" title="Loosen timing and velocity of the selected notes (or all)">Humanize</button>
+    <button class="btn small" id="rollAll" title="Select every note (Ctrl+A). Shift+click adds or removes single notes.">Select all</button>
+    <button class="btn small on" id="rollScaleBtn" title="Shade the rows that belong to the song key">Scale</button>
+    <label class="mini" style="font-size:.75rem;color:var(--sub)">Stamp <select id="rollChord"><option value="">Single note</option><option value="0,4,7">Major chord</option><option value="0,3,7">Minor chord</option><option value="0,4,7,10">Dominant 7th</option><option value="0,4,7,11">Major 7th</option><option value="0,3,7,10">Minor 7th</option><option value="0,5,7">Sus4</option><option value="0,7,12">Power (5th + octave)</option><option value="0,12">Octave</option></select></label>
     <label class="mini" style="font-size:.75rem;color:var(--sub)">Snap <select id="rollSnap"><option value="1">1 beat</option><option value="0.5">1/2</option><option value="0.25" selected>1/4</option><option value="0.125">1/8</option><option value="0">Off</option></select></label>
     <label class="mini" style="font-size:.75rem;color:var(--sub)">Vel <input type="range" id="rollVel" min="0.1" max="1" step="0.01" value="0.85"></label>
     <button class="btn small" id="rollZm"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg> −</button><button class="btn small" id="rollZp"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg> +</button>
   </div>
   <div class="roll-hint" id="rollHint">Tap empty space to add a note · tap a note to select · drag to move · drag the right edge to resize.</div>
   <div class="roll-body" id="rollBody"><canvas class="roll-keys" id="rollKeys"></canvas><div class="roll-scroll" id="rollScroll"><canvas id="rollGrid"></canvas></div></div>
+  <div class="roll-vel"><div class="rv-label">Velocity</div><div class="rv-scroll" id="rollVelScroll"><canvas id="rollVelCv" height="64"></canvas></div></div>
 </div>
 
 <div class="wrap">
@@ -433,6 +450,17 @@
       <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z"/></svg> Coach</button>
       <span class="mini" id="stInfo"></span>
       <div class="hint" id="coachOut" style="display:none;width:100%"></div>
+    </div>
+    <div class="mastering">
+      <div class="mviz"><canvas id="specCv" width="720" height="130"></canvas>
+        <div class="mread"><span id="rdPeak">peak —</span><span id="rdRms">level —</span><span id="rdLufs">loudness — LUFS</span></div></div>
+      <div class="transport" style="margin-top:8px">
+        <button class="btn small primary" id="autoMasterBtn" title="Plays the song once, listens to it, then sets EQ, compression and loudness for you">✦ Auto-master</button>
+        <button class="btn small ghost" id="measureBtn" title="Plays the song once and measures integrated loudness (LUFS) and peak">Measure loudness</button>
+        <label class="mini">Fade in <input type="number" id="fadeIn" min="0" max="20" step="0.5" value="0" style="width:56px"> s</label>
+        <label class="mini">Fade out <input type="number" id="fadeOut" min="0" max="30" step="0.5" value="0" style="width:56px"> s</label>
+        <span class="mini" id="mstrInfo"></span>
+      </div>
     </div>
     <div class="transport" style="margin-top:10px">
       <label class="chk">Master sound <select id="masterPreset"><option value="balanced">Balanced</option><option value="warm">Warm &amp; smooth</option><option value="bright">Bright &amp; airy</option><option value="punchy">Punchy</option><option value="wide">Wide &amp; cinematic</option></select></label>
@@ -762,7 +790,7 @@ const PRESETS = [
    3. PROJECT STATE + AUDIO ENGINE
 ===================================================================== */
 const S = { bpm:120, bars:8, keyRoot:'auto', scale:'auto', grid:4, mode:'melody', instrument:'piano', kit:'club', swing:0, humanize:true };
-let masterGain, compressor, limiter, eq, recorder, reverbBus, reverbIn, widener, delayBus;
+let masterGain, compressor, limiter, eq, recorder, reverbBus, reverbIn, widener, delayBus, fadeGain, anaFft, anaWave;
 let tracks = [], trackIdCounter = 0;
 const trackColors = ['#2dd4bf','#38bdf8','#22d3ee','#34d399','#fbbf24','#f472b6','#60a5fa','#fb923c'];
 const spb = () => 60 / S.bpm;
@@ -774,7 +802,9 @@ function buildMasterChain() {
   compressor = new Tone.Compressor({ threshold: -20, ratio: 3, attack: 0.02, release: 0.25 });   // gentle bus 'glue'
   limiter = new Tone.Limiter(-1);
   widener = new Tone.StereoWidener(0.5);
-  masterGain.chain(eq, compressor, widener, limiter, Tone.Destination);
+  fadeGain = new Tone.Gain(1);
+  masterGain.chain(eq, compressor, widener, fadeGain, limiter, Tone.Destination);
+  anaFft = new Tone.Analyser('fft', 1024); anaWave = new Tone.Analyser('waveform', 1024); limiter.connect(anaFft); limiter.connect(anaWave);
   recorder = new Tone.Recorder();
   limiter.connect(recorder);
   reverbBus = new Tone.Reverb({ decay: 3.2, preDelay: 0.02 });
@@ -790,10 +820,12 @@ function makeTrackChain() {
   const duck = new Tone.Gain(1), vol = new Tone.Gain(0.85), pan = new Tone.Panner(0);
   const rev = new Tone.Gain(0), dly = new Tone.Gain(0);
   const hp = new Tone.Filter(100, 'highpass');       // keeps low-end mud out of everything except bass/kick
-  duck.connect(hp); hp.connect(vol); vol.connect(pan);
+  const ceq = new Tone.EQ3({ low: 0, mid: 0, high: 0 }), cmp = new Tone.Compressor({ threshold: 0, ratio: 1, attack: 0.01, release: 0.18 });
+  const sw = new Tone.Filter(20000, 'lowpass');       // filter sweep (automation)
+  duck.chain(hp, ceq, cmp, sw, vol); vol.connect(pan);
   pan.connect(masterGain); pan.connect(rev); pan.connect(dly);
   rev.connect(reverbIn); dly.connect(delayBus);
-  return { duck, hp, vol, pan, rev, dly };
+  return { duck, hp, ceq, cmp, sw, vol, pan, rev, dly };
 }
 
 /* ----- auto-mix: sensible levels, low-cut, stereo spread and reverb by role ----- */
@@ -1199,10 +1231,16 @@ async function onRecordingStopped(data, sr) {
 function newTrackBase(type) {
   const id = ++trackIdCounter;
   return { id, type, color: trackColors[(id - 1) % trackColors.length], chain: makeTrackChain(),
-    muted:false, solo:false, volume:0.85, pan:0, rev:0, dly:0, pump:false, octave:0, part:null, startBar:0, endBar:0, repeat:false, created: Date.now() };
+    muted:false, solo:false, volume:0.85, pan:0, rev:0, dly:0, ch:{ low:0, mid:0, high:0, comp:0 }, sweep:false, pump:false, octave:0, part:null, startBar:0, endBar:0, repeat:false, created: Date.now() };
 }
 function applyTrackFx(t) {
   t.chain.pan.pan.value = t.pan; t.chain.rev.gain.value = t.rev; t.chain.dly.gain.value = t.dly;
+  applyChannel(t);
+}
+function applyChannel(t) {
+  const c = t.ch || (t.ch = { low:0, mid:0, high:0, comp:0 });
+  t.chain.ceq.low.value = c.low; t.chain.ceq.mid.value = c.mid; t.chain.ceq.high.value = c.high;
+  t.chain.cmp.threshold.value = -4 - c.comp * 26; t.chain.cmp.ratio.value = 1 + c.comp * 7;
 }
 function growBarsToFit() {
   let endB = 0;
@@ -1383,6 +1421,14 @@ function renderTracks() {
         '<label class="mini">Pan <input type="range" class="pan" min="-1" max="1" step="0.01" value="' + t.pan + '"></label>' +
         '<label class="mini">Reverb <input type="range" class="rev" min="0" max="1" step="0.01" value="' + t.rev + '"></label>' +
         '<label class="mini">Echo <input type="range" class="dly" min="0" max="1" step="0.01" value="' + t.dly + '"></label>' +
+        '<button class="toggle chbtn' + (t.chOpen ? ' on' : '') + '" title="Channel strip: EQ + compressor for this track">EQ / Comp</button>' +
+        '<button class="toggle sweepbtn' + (t.sweep ? ' on' : '') + '" title="Filter sweep: opens the filter from dark to bright over the whole song">Sweep</button>' +
+        '<div class="chrow" style="' + (t.chOpen ? '' : 'display:none;') + 'width:100%;display:' + (t.chOpen ? 'flex' : 'none') + ';gap:14px;flex-wrap:wrap;padding-top:8px">' +
+          '<label class="mini">Low <input type="range" class="cl" min="-12" max="12" step="0.5" value="' + t.ch.low + '"></label>' +
+          '<label class="mini">Mid <input type="range" class="cm" min="-12" max="12" step="0.5" value="' + t.ch.mid + '"></label>' +
+          '<label class="mini">High <input type="range" class="chh" min="-12" max="12" step="0.5" value="' + t.ch.high + '"></label>' +
+          '<label class="mini">Comp <input type="range" class="cc" min="0" max="1" step="0.01" value="' + t.ch.comp + '"></label>' +
+        '</div>' +
         (!isMel ? '' :
           '<button class="toggle pump' + (t.pump ? ' on' : '') + '" title="Duck on every kick (sidechain pump)">Pump</button>' +
           '<span class="mini"><button class="toggle oct-dn" title="Octave down">−8va</button> <span class="octlbl">' + (t.octave > 0 ? '+' : '') + t.octave + '</span> <button class="toggle oct-up" title="Octave up">+8va</button></span>') +
@@ -1407,6 +1453,9 @@ function renderTracks() {
     q('.rev').addEventListener('input', e => { t.rev = parseFloat(e.target.value); applyTrackFx(t); });
     q('.dly').addEventListener('input', e => { t.dly = parseFloat(e.target.value); applyTrackFx(t); });
     q('.del').addEventListener('click', () => removeTrack(t.id));
+    q('.chbtn').addEventListener('click', e => { t.chOpen = !t.chOpen; e.target.classList.toggle('on', t.chOpen); q('.chrow').style.display = t.chOpen ? 'flex' : 'none'; });
+    q('.sweepbtn').addEventListener('click', e => { t.sweep = !t.sweep; e.target.classList.toggle('on', t.sweep); if (!t.sweep) t.chain.sw.frequency.value = 20000; });
+    [['.cl', 'low'], ['.cm', 'mid'], ['.chh', 'high'], ['.cc', 'comp']].forEach(([sel, k]) => q(sel).addEventListener('input', e => { t.ch[k] = parseFloat(e.target.value); applyChannel(t); }));
     const applyBars = () => {
       t.startBar = Math.max(0, (parseInt(q('.barfrom').value, 10) || 1) - 1);
       const to = parseInt(q('.barto').value, 10); t.endBar = to > t.startBar ? to : 0;
@@ -2450,7 +2499,19 @@ $('#chatText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.pre
 ===================================================================== */
 const RP = { t: null, sel: -1, ppb: 64, rowH: 22, lo: 48, hi: 84, step: 0.25, mode: 'edit', hist: [], redo: [], drag: null, lastDur: 0.5, raf: 0, partTimer: 0 };
 const BLACK = [1, 3, 6, 8, 10];
+RP.multi = new Set(); RP.scaleOn = true;
 const rollGrid = $('#rollGrid'), rollKeys = $('#rollKeys');
+function rollScalePcs() {
+  if (!RP.t || !RP.scaleOn || S.scale === 'off') return null;
+  let root = S.keyRoot, mode = S.scale;
+  if (root === 'auto' || mode === 'auto' || !DSP.SCALES[mode]) {
+    if (!RP.t.notes.length) return null;
+    const k = DSP.detectKey(RP.t.notes.map(n => ({ rawMidi: n.midi, dur: n.durB })));
+    if (root === 'auto') root = k.root; if (mode === 'auto' || !DSP.SCALES[mode]) mode = k.mode;
+  }
+  const sc = DSP.SCALES[mode]; if (!sc) return null;
+  return { root: ((root % 12) + 12) % 12, set: sc.map(d => (root + d) % 12) };
+}
 const rOct = () => 12 * (RP.t ? RP.t.octave : 0);
 function rollSnapshot() { RP.hist.push(JSON.stringify(RP.t.notes)); if (RP.hist.length > 80) RP.hist.shift(); RP.redo = []; }
 function rollCommit(quick) {
@@ -2478,9 +2539,11 @@ function rollDraw() {
   if (!RP.t) return;
   const g = rollGrid.getContext('2d'), k = rollKeys.getContext('2d'), W = rollGrid.width, H = rollGrid.height, rh = RP.rowH;
   g.clearRect(0, 0, W, H); k.clearRect(0, 0, 46, H);
+  const SCP = rollScalePcs();
   for (let m = RP.hi; m >= RP.lo; m--) {
     const y = (RP.hi - m) * rh, pc = ((m % 12) + 12) % 12, blk = BLACK.indexOf(pc) !== -1;
     g.fillStyle = blk ? '#0d0e17' : '#12131e'; g.fillRect(0, y, W, rh);
+    if (SCP && SCP.set.indexOf(((pc - rOct()) % 12 + 12) % 12) !== -1) { g.fillStyle = ((pc - rOct()) % 12 + 12) % 12 === SCP.root ? 'rgba(45,212,191,.16)' : 'rgba(45,212,191,.07)'; g.fillRect(0, y, W, rh); }
     g.fillStyle = 'rgba(255,255,255,.05)'; g.fillRect(0, y + rh - 1, W, 1);
     k.fillStyle = blk ? '#1b1c28' : '#e9e9f2'; k.fillRect(0, y, 46, rh - 1);
     if (pc === 0) { k.fillStyle = '#111'; k.font = '10px sans-serif'; k.fillText('C' + (Math.floor(m / 12) - 1), 4, y + rh - 6); }
@@ -2498,6 +2561,7 @@ function rollDraw() {
     g.globalAlpha = 0.45 + 0.55 * (n.vel || 0.85);
     g.fillStyle = RP.t.color; g.fillRect(x, y + 1, w, rh - 3);
     g.globalAlpha = 1;
+    if (RP.multi.has(i) && i !== RP.sel) { g.strokeStyle = '#38bdf8'; g.lineWidth = 2; g.strokeRect(x + 1, y + 2, w - 2, rh - 5); }
     if (i === RP.sel) { g.strokeStyle = '#fff'; g.lineWidth = 2; g.strokeRect(x + 1, y + 2, w - 2, rh - 5); g.fillStyle = '#fff'; g.fillRect(x + w - 5, y + 4, 3, rh - 9); }
     if (w > 28) { g.fillStyle = 'rgba(0,0,0,.65)'; g.font = '10px sans-serif'; g.fillText(DSP.midiToNoteName(m), x + 4, y + rh - 7); }
   });
@@ -2505,14 +2569,44 @@ function rollDraw() {
     const len = songLen() || 1, bt = ((Tone.Transport.seconds % len) / spb());
     g.fillStyle = '#22d3ee'; g.fillRect(Math.round(bt * RP.ppb), 0, 2, H);
   }
+  rollVelDraw();
 }
+function rollVelDraw() {
+  const cv = $('#rollVelCv'); if (!cv || !RP.t) return;
+  cv.width = rollGrid.width; cv.style.width = rollGrid.width + 'px';
+  const g = cv.getContext('2d'), W = cv.width, H = 64;
+  g.clearRect(0, 0, W, H); g.fillStyle = '#0b0f18'; g.fillRect(0, 0, W, H);
+  const beats = W / RP.ppb;
+  for (let b = 0; b <= beats; b++) { g.fillStyle = b % 4 === 0 ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.06)'; g.fillRect(Math.round(b * RP.ppb), 0, 1, H); }
+  RP.t.notes.forEach((n, i) => {
+    const v = n.vel || 0.85, x = n.startB * RP.ppb, h = Math.max(2, v * (H - 8));
+    g.fillStyle = (i === RP.sel || RP.multi.has(i)) ? '#fff' : RP.t.color; g.globalAlpha = 0.9;
+    g.fillRect(x, H - h - 2, 5, h); g.fillRect(x - 3, H - h - 2, 11, 3); g.globalAlpha = 1;
+  });
+}
+const rvScroll = $('#rollVelScroll');
+$('#rollScroll').addEventListener('scroll', () => { rvScroll.scrollLeft = $('#rollScroll').scrollLeft; });
+let rvDrag = false;
+function rvSet(e) {
+  if (!RP.t) return; const cv = $('#rollVelCv'), r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const beat = x / RP.ppb; let bi = -1, bd = 1e9;
+  RP.t.notes.forEach((n, i) => { const d = Math.abs(n.startB - beat); if (d < bd) { bd = d; bi = i; } });
+  if (bi < 0 || bd * RP.ppb > 14) return;
+  const v = Math.max(0.1, Math.min(1, 1 - (y - 4) / 56)), set = (RP.multi.has(bi) && RP.multi.size > 1) ? RP.multi : new Set([bi]);
+  set.forEach(k => { RP.t.notes[k] = Object.assign({}, RP.t.notes[k], { vel: v }); });
+  RP.sel = bi; $('#rollVel').value = v; rollDraw(); rollCommit();
+}
+$('#rollVelCv').addEventListener('pointerdown', e => { rvDrag = true; rollSnapshot(); try { e.target.setPointerCapture(e.pointerId); } catch (x) {} rvSet(e); });
+$('#rollVelCv').addEventListener('pointermove', e => { if (rvDrag) rvSet(e); });
+$('#rollVelCv').addEventListener('pointerup', () => { rvDrag = false; });
+$('#rollVelCv').addEventListener('pointercancel', () => { rvDrag = false; });
 function rollLoop() { if (!RP.t) return; if (Tone.Transport.state === 'started') rollDraw(); RP.raf = requestAnimationFrame(rollLoop); }
 function rollAudition(midiDisp) {
   try { if (!RP.t.inst) return; RP.t.inst.play(DSP.midiToNoteName(clampMidi(midiDisp)), 0.3, Tone.now() + 0.01, 0.8); } catch (e) {}
 }
 function openRoll(t) {
   if (!t || t.type !== 'melody') return;
-  RP.t = t; RP.sel = -1; RP.hist = []; RP.redo = []; RP.drag = null;
+  RP.t = t; RP.sel = -1; RP.multi = new Set(); RP.hist = []; RP.redo = []; RP.drag = null;
   $('#rollTitle').textContent = t.def.label + ' — ' + t.notes.length + ' notes';
   $('#rollPage').style.display = 'flex'; document.body.style.overflow = 'hidden';
   rollRange(false); rollSize(); rollDraw(); rollLoop();
@@ -2540,7 +2634,12 @@ rollGrid.addEventListener('pointerdown', e => {
   e.preventDefault(); try { rollGrid.setPointerCapture(e.pointerId); } catch (x) {}
   const p = rollPoint(e), nm = p.midiDisp - rOct();
   const hit = DSP.rollOps.hit(RP.t.notes, p.beat, nm, Math.max(0.12, 12 / RP.ppb));
+  if (hit && e.shiftKey) {
+    if (RP.multi.has(hit.i)) RP.multi.delete(hit.i); else RP.multi.add(hit.i);
+    if (RP.sel >= 0) RP.multi.add(RP.sel); RP.sel = hit.i; rollDraw(); return;
+  }
   if (hit) {
+    if (!RP.multi.has(hit.i)) RP.multi = new Set();
     RP.sel = hit.i; const n = RP.t.notes[hit.i];
     RP.drag = { kind: hit.zone, i: hit.i, b0: p.beat, m0: nm, orig: Object.assign({}, n), moved: false };
     $('#rollVel').value = n.vel || 0.85; rollAudition(n.midi + rOct());
@@ -2549,7 +2648,10 @@ rollGrid.addEventListener('pointerdown', e => {
     const st = DSP.rollOps.snap(p.beat, RP.step) - (RP.step ? 0 : 0);
     const start = RP.step ? Math.floor(p.beat / RP.step) * RP.step : p.beat;
     RP.t.notes = DSP.rollOps.add(RP.t.notes, start, nm, RP.lastDur, +$('#rollVel').value);
-    RP.sel = RP.t.notes.length - 1; RP.drag = { kind: 'end', i: RP.sel, b0: p.beat, m0: nm, orig: Object.assign({}, RP.t.notes[RP.sel]), moved: false, fresh: true };
+    RP.multi = new Set(); const baseIdx = RP.t.notes.length - 1;
+    const stamp = ($('#rollChord').value || '').split(',').filter(x => x !== '').map(Number).filter(x => x > 0);
+    stamp.forEach(iv => { if (nm + iv <= 108 - rOct()) RP.t.notes = DSP.rollOps.add(RP.t.notes, start, nm + iv, RP.lastDur, +$('#rollVel').value); });
+    RP.sel = baseIdx; RP.drag = { kind: 'end', i: RP.sel, b0: p.beat, m0: nm, orig: Object.assign({}, RP.t.notes[RP.sel]), moved: false, fresh: true };
     rollAudition(nm + rOct()); rollCommit(); $('#rollTitle').textContent = RP.t.def.label + ' — ' + RP.t.notes.length + ' notes';
   }
   rollDraw();
@@ -2589,19 +2691,35 @@ $('#rollPlay').addEventListener('click', async () => {
   else { await Tone.start(); startPlayback(); $('#rollPlay').textContent = '■ Stop'; }
 });
 $('#rollUndo').addEventListener('click', () => {
-  if (!RP.hist.length) return; RP.redo.push(JSON.stringify(RP.t.notes)); RP.t.notes = JSON.parse(RP.hist.pop()); RP.sel = -1; rollRange(true); rollSize(); rollDraw(); rollCommit(true); $('#rollTitle').textContent = RP.t.def.label + ' — ' + RP.t.notes.length + ' notes';
+  if (!RP.hist.length) return; RP.redo.push(JSON.stringify(RP.t.notes)); RP.t.notes = JSON.parse(RP.hist.pop()); RP.sel = -1; RP.multi = new Set(); rollRange(true); rollSize(); rollDraw(); rollCommit(true); $('#rollTitle').textContent = RP.t.def.label + ' — ' + RP.t.notes.length + ' notes';
 });
 $('#rollRedo').addEventListener('click', () => {
-  if (!RP.redo.length) return; RP.hist.push(JSON.stringify(RP.t.notes)); RP.t.notes = JSON.parse(RP.redo.pop()); RP.sel = -1; rollRange(true); rollSize(); rollDraw(); rollCommit(true); $('#rollTitle').textContent = RP.t.def.label + ' — ' + RP.t.notes.length + ' notes';
+  if (!RP.redo.length) return; RP.hist.push(JSON.stringify(RP.t.notes)); RP.t.notes = JSON.parse(RP.redo.pop()); RP.sel = -1; RP.multi = new Set(); rollRange(true); rollSize(); rollDraw(); rollCommit(true); $('#rollTitle').textContent = RP.t.def.label + ' — ' + RP.t.notes.length + ' notes';
 });
-$('#rollDel').addEventListener('click', () => { const i = rollSel(); if (i < 0) return; rollMutate(n => DSP.rollOps.remove(n, i)); RP.sel = -1; rollDraw(); });
-$('#rollDup').addEventListener('click', () => { const i = rollSel(); if (i < 0) return; rollMutate(n => DSP.rollOps.duplicate(n, i)); RP.sel = RP.t.notes.length - 1; rollDraw(); });
-const rollTr = d => { const i = rollSel(); rollMutate(n => DSP.rollOps.transpose(n, d, i, 24 - rOct(), 108 - rOct())); if (i >= 0) rollAudition(RP.t.notes[i].midi + rOct()); };
+const selSet = () => { if (RP.multi.size > 1) return new Set(RP.multi); const i = rollSel(); return i >= 0 ? new Set([i]) : new Set(); };
+$('#rollDel').addEventListener('click', () => { const S2 = selSet(); if (!S2.size) return; rollMutate(n => n.filter((_, k) => !S2.has(k))); RP.sel = -1; RP.multi = new Set(); rollDraw(); });
+$('#rollAll').addEventListener('click', () => { if (!RP.t) return; RP.multi = new Set(RP.t.notes.map((_, i) => i)); RP.sel = RP.t.notes.length ? 0 : -1; rollDraw(); });
+$('#rollScaleBtn').addEventListener('click', e => { RP.scaleOn = !RP.scaleOn; e.currentTarget.classList.toggle('on', RP.scaleOn); rollDraw(); });
+$('#rollHum').addEventListener('click', () => { const S2 = selSet(); rollMutate(n => n.map((x, k) => (S2.size && !S2.has(k)) ? x : Object.assign({}, x, { startB: Math.max(0, x.startB + (Math.random() - 0.5) * 0.07), vel: Math.max(0.3, Math.min(1, (x.vel || 0.85) + (Math.random() - 0.5) * 0.2)) }))); });
+$('#rollDup').addEventListener('click', () => {
+  const S2 = selSet(); if (!S2.size) return; let n0 = RP.t.notes.length;
+  rollMutate(n => { let end = 0, st = 1e9; S2.forEach(k => { end = Math.max(end, n[k].startB + n[k].durB); st = Math.min(st, n[k].startB); }); const span = end - st; return n.concat(Array.from(S2).sort((a, b) => a - b).map(k => Object.assign({}, n[k], { startB: n[k].startB + span }))); });
+  RP.multi = new Set(); for (let k = n0; k < RP.t.notes.length; k++) RP.multi.add(k); RP.sel = n0; rollDraw();
+});
+const rollTr = d => { const S2 = selSet(), i = rollSel(); rollMutate(n => n.map((x, k) => (S2.size && !S2.has(k)) ? x : Object.assign({}, x, { midi: Math.max(24 - rOct(), Math.min(108 - rOct(), x.midi + d)) }))); if (i >= 0) rollAudition(RP.t.notes[i].midi + rOct()); };
 $('#rollDn').addEventListener('click', () => rollTr(-1));
 $('#rollUp').addEventListener('click', () => rollTr(1));
 $('#rollOctDn').addEventListener('click', () => rollTr(-12));
 $('#rollOctUp').addEventListener('click', () => rollTr(12));
-$('#rollQ').addEventListener('click', () => { const i = rollSel(); rollMutate(n => DSP.rollOps.quantize(n, RP.step || 0.25, i)); });
+$('#rollQ').addEventListener('click', () => {
+  const S2 = selSet(), step = RP.step || 0.25, str = parseFloat($('#rollQStr').value) || 1;
+  rollMutate(n => n.map((x, k) => {
+    if (S2.size && !S2.has(k)) return x;
+    const s0 = Math.round(x.startB / step) * step, e0 = Math.max(s0 + step, Math.round((x.startB + x.durB) / step) * step);
+    const s1 = x.startB + (s0 - x.startB) * str, d1 = x.durB + ((e0 - s0) - x.durB) * str;
+    return Object.assign({}, x, { startB: s1, durB: Math.max(0.0625, d1) });
+  }));
+});
 $('#rollSnap').addEventListener('change', e => { RP.step = parseFloat(e.target.value); rollDraw(); });
 $('#rollVel').addEventListener('input', e => {
   const i = rollSel(); if (i < 0) return; RP.t.notes[i] = Object.assign({}, RP.t.notes[i], { vel: parseFloat(e.target.value) }); rollDraw(); rollCommit();
@@ -2613,6 +2731,7 @@ $('#rollZp').addEventListener('click', () => rollZoom(1.25));
 document.addEventListener('keydown', e => {
   if (!RP.t) return;
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); $('#rollDel').click(); }
+  else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') { e.preventDefault(); $('#rollAll').click(); }
   else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); $(e.shiftKey ? '#rollRedo' : '#rollUndo').click(); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); rollTr(1); }
   else if (e.key === 'ArrowDown') { e.preventDefault(); rollTr(-1); }
@@ -2679,14 +2798,121 @@ function stopPlayback() {
   Tone.Transport.stop();
   if (stopEventId !== null) { Tone.Transport.clear(stopEventId); stopEventId = null; }
   cancelAnimationFrame(progRaf); $('#progFill').style.width = '0%';
+  try { if (fadeGain) { fadeGain.gain.cancelScheduledValues(0); fadeGain.gain.value = 1; } tracks.forEach(t => { t.chain.sw.frequency.cancelScheduledValues(0); t.chain.sw.frequency.value = t.sweep ? 18000 : 20000; }); } catch (e) {}
 }
 function progLoop() {
   const len = songLen();
   $('#progFill').style.width = Math.min(100, (Tone.Transport.seconds % (len || 1)) / len * 100) + '%';
   progRaf = requestAnimationFrame(progLoop);
 }
+
+/* ----- mastering suite: live meters + spectrum, loudness measuring, auto-master, fades, sweeps ----- */
+const dbOf = x => 20 * Math.log10(Math.max(1e-6, x));
+let vizOn = false, peakHold = 0, peakAt = 0;
+function vizLoop() {
+  requestAnimationFrame(vizLoop);
+  const cv = document.getElementById('specCv'); if (!cv || !anaFft || document.hidden) return;
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height;
+  const fft = anaFft.getValue(), wave = anaWave.getValue();
+  let pk = 0, sq = 0; for (let i = 0; i < wave.length; i++) { const a = Math.abs(wave[i]); if (a > pk) pk = a; sq += wave[i] * wave[i]; }
+  const rms = Math.sqrt(sq / wave.length), now = performance.now();
+  if (pk >= peakHold || now - peakAt > 1500) { peakHold = pk; peakAt = now; }
+  g.clearRect(0, 0, W, H); g.fillStyle = '#0a0f1a'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,.06)'; g.lineWidth = 1;
+  for (let d = -20; d > -100; d -= 20) { const y = H * (-d / 100); g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  const sr = Tone.context.sampleRate, bins = fft.length, nyq = sr / 2;
+  const grad = g.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#2dd4bf'); grad.addColorStop(1, '#38bdf8');
+  g.fillStyle = grad; g.beginPath(); g.moveTo(0, H);
+  for (let x = 0; x < W; x++) {
+    const f = 20 * Math.pow(1000, x / W), b = Math.min(bins - 1, Math.round(f / nyq * bins));
+    const v = Math.max(-100, Math.min(0, fft[b])), y = H * (-v / 100);
+    g.lineTo(x, y);
+  }
+  g.lineTo(W, H); g.closePath(); g.globalAlpha = 0.85; g.fill(); g.globalAlpha = 1;
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.font = '10px sans-serif';
+  [['50', 50], ['100', 100], ['500', 500], ['1k', 1000], ['5k', 5000], ['10k', 10000]].forEach(([l, f]) => { const x = Math.log(f / 20) / Math.log(1000) * W; g.fillText(l, x + 2, H - 3); });
+  const pdb = dbOf(peakHold), rdb = dbOf(rms);
+  $('#rdPeak').textContent = 'peak ' + (pdb < -90 ? '—' : pdb.toFixed(1) + ' dBFS'); $('#rdPeak').style.color = pdb > -0.5 ? '#f87171' : '';
+  $('#rdRms').textContent = 'level ' + (rdb < -90 ? '—' : rdb.toFixed(1) + ' dB RMS');
+}
+let vizStarted = false;
+function startViz() { if (!vizStarted && anaFft) { vizStarted = true; vizLoop(); } }
+$('#playBtn').addEventListener('click', () => setTimeout(startViz, 50));
+
+function bandShares(avgPow, sr) {
+  const bins = avgPow.length, nyq = sr / 2, fb = f => Math.min(bins - 1, Math.round(f / nyq * bins));
+  const sum = (a, b) => { let t = 0; for (let i = fb(a); i < fb(b); i++) t += avgPow[i]; return t; };
+  const lo = sum(30, 200), mi = sum(200, 4000), hi = sum(4000, 16000), tot = lo + mi + hi + 1e-12;
+  return { lo: lo / tot, mi: mi / tot, hi: hi / tot };
+}
+async function analyseSong(label) {
+  if (!tracks.length) { alert('Add a track first.'); return null; }
+  const info = $('#mstrInfo'), sr = Tone.context.sampleRate; let avg = null, n = 0;
+  const { mix } = await renderSong(false, p => {
+    info.textContent = label + ' ' + Math.round(p * 100) + '%'; startViz();
+    const f = anaFft.getValue(); if (!avg) avg = new Float64Array(f.length);
+    let any = false; for (let i = 0; i < f.length; i++) { if (f[i] > -90) any = true; }
+    if (any) { for (let i = 0; i < f.length; i++) avg[i] += Math.pow(10, f[i] / 10); n++; }
+  });
+  const chans = trimTail(mix.chans, mix.sr);
+  const lufs = DSP.measureLufs(chans, mix.sr), peak = DSP.peakOf(chans), peakDb = dbOf(peak);
+  let sq = 0, cnt = 0; chans.forEach(c => { for (let i = 0; i < c.length; i += 4) { sq += c[i] * c[i]; cnt++; } });
+  const rmsDb = dbOf(Math.sqrt(sq / Math.max(1, cnt)));
+  if (avg && n) for (let i = 0; i < avg.length; i++) avg[i] /= n;
+  $('#rdLufs').textContent = 'loudness ' + (lufs > -69 ? lufs.toFixed(1) : '—') + ' LUFS';
+  return { lufs, peakDb, crest: peakDb - rmsDb, shares: avg ? bandShares(avg, sr) : null };
+}
+$('#measureBtn').addEventListener('click', async () => {
+  const b = $('#measureBtn'); b.disabled = true;
+  try { const r = await analyseSong('measuring'); if (r) $('#mstrInfo').textContent = r.lufs.toFixed(1) + ' LUFS · peak ' + r.peakDb.toFixed(1) + ' dBFS · crest ' + r.crest.toFixed(1) + ' dB'; }
+  catch (e) { console.error(e); $('#mstrInfo').textContent = 'measure failed: ' + (e && e.message || e); }
+  b.disabled = false;
+});
+$('#autoMasterBtn').addEventListener('click', async () => {
+  const b = $('#autoMasterBtn'); b.disabled = true;
+  try {
+    // start from a neutral master so the measurement is not biased by earlier settings
+    applyPreset('balanced');
+    const r = await analyseSong('listening');
+    if (!r) { b.disabled = false; return; }
+    const tgt = { lo: 0.46, mi: 0.46, hi: 0.08 }, clamp = (v, a, z) => Math.max(a, Math.min(z, v));
+    let low = 0, mid = 0, high = 0;
+    if (r.shares) {
+      low = clamp(10 * Math.log10(tgt.lo / Math.max(0.01, r.shares.lo)) * 0.55, -3.5, 3.5);
+      high = clamp(10 * Math.log10(tgt.hi / Math.max(0.005, r.shares.hi)) * 0.55, -3.5, 4);
+      mid = clamp(-(low + high) * 0.15, -1.5, 1.5);
+    }
+    const comp = r.crest > 15 ? 0.62 : r.crest > 12 ? 0.5 : r.crest > 9 ? 0.4 : 0.3;
+    eq.low.value = low; eq.mid.value = mid; eq.high.value = high;
+    $('#compAmt').value = comp; compressor.threshold.value = -36 + comp * 28; compressor.ratio.value = 1.5 + comp * 6;
+    $('#warmth').value = 0; $('#masterPreset').value = 'balanced';
+    $('#expTarget').value = '-14';
+    $('#mstrInfo').textContent = 'Auto-mastered: low ' + low.toFixed(1) + ' dB · mid ' + mid.toFixed(1) + ' dB · high ' + high.toFixed(1) + ' dB · compression ' + Math.round(comp * 100) + '% · export target −14 LUFS (was ' + r.lufs.toFixed(1) + ' LUFS)';
+    setStatus('auto-mastered — export to hear the final level', 'ready');
+  } catch (e) { console.error(e); $('#mstrInfo').textContent = 'auto-master failed: ' + (e && e.message || e); }
+  b.disabled = false;
+});
+
+/* fades + filter sweeps: re-armed on every playback / render start */
+let autoId = null;
+function armAutomation() {
+  if (autoId !== null) { try { Tone.Transport.clear(autoId); } catch (e) {} autoId = null; }
+  const len = songLen(), fi = Math.max(0, parseFloat($('#fadeIn').value) || 0), fo = Math.max(0, parseFloat($('#fadeOut').value) || 0);
+  tracks.forEach(t => { if (!t.sweep) t.chain.sw.frequency.cancelScheduledValues(0); });
+  fadeGain.gain.cancelScheduledValues(0); fadeGain.gain.value = fi > 0 ? 0 : 1;
+  autoId = Tone.Transport.scheduleRepeat(time => {
+    const g = fadeGain.gain; g.cancelScheduledValues(time);
+    if (fi > 0) { g.setValueAtTime(0, time); g.linearRampToValueAtTime(1, time + fi); } else g.setValueAtTime(1, time);
+    if (fo > 0 && len - fo > fi) { g.setValueAtTime(1, time + len - fo); g.linearRampToValueAtTime(0.0001, time + len - 0.02); }
+    tracks.forEach(t => {
+      if (!t.sweep) return; const f = t.chain.sw.frequency; f.cancelScheduledValues(time);
+      f.setValueAtTime(220, time); f.exponentialRampToValueAtTime(18000, time + len * 0.92); f.setValueAtTime(18000, time + len * 0.94);
+    });
+  }, len, 0);
+}
+
 function startPlayback() {
-  stopPlayback();
+  stopPlayback(); armAutomation();
   updateLoop();
   Tone.Transport.position = 0;
   if (!$('#loopChk').checked) {
@@ -2756,13 +2982,13 @@ async function openTap(src) {
 }
 async function renderSong(withStems, onTick) {
   await Tone.start(); stopPlayback();
-  const wasLoop = $('#loopChk').checked; $('#loopChk').checked = false; updateLoop();
+  const wasLoop = $('#loopChk').checked; $('#loopChk').checked = false; updateLoop(); armAutomation();
   const mixTap = await openTap(limiter), stemTaps = [];
   if (withStems) for (const t of tracks) if (audible(t)) stemTaps.push({ t, tap: await openTap(t.chain.pan) });
   Tone.Transport.position = 0; Tone.Transport.start();
   const total = (songLen() + 2.4) * 1000, t0 = performance.now();
   while (performance.now() - t0 < total) { if (onTick) onTick(Math.min(1, (performance.now() - t0) / total)); await sleep(200); }
-  Tone.Transport.stop();
+  Tone.Transport.stop(); stopPlayback();
   const mix = await mixTap.stop(), stems = [];
   for (const st of stemTaps) stems.push({ t: st.t, data: await st.tap.stop() });
   $('#loopChk').checked = wasLoop; updateLoop();
@@ -2856,7 +3082,7 @@ $('#saveBtn').addEventListener('click', () => {
   tasteReward();
   const data = { app:'melodize', version:2, settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize, preset:S.preset || 'balanced', room:S.room || 'hall' },
     tracks: tracks.map(t => {
-      const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, repeat:!!t.repeat };
+      const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, repeat:!!t.repeat, ch:t.ch, sweep:!!t.sweep };
       return t.type === 'melody'
         ? Object.assign(base, { instKey:t.instKey, notes:t.notes, pump:t.pump, octave:t.octave })
         : t.type === 'audio' ? Object.assign(base, { sr:t.sr, wav:u8ToB64(new Uint8Array(DSP.encodeWav([t.data], t.sr))) })
@@ -2884,7 +3110,7 @@ $('#loadFile').addEventListener('change', async e => {
       else if (t.type === 'drums') await addDrumTrack(t.pattern, KITS[t.kitKey] ? t.kitKey : 'club', t);
       else if (t.type === 'audio' && t.wav) { const w = DSP.decodeWav(b64ToBuf(t.wav)); await addAudioTrack(w.data, w.sr, t); }
       const nt = tracks[tracks.length - 1];
-      if (nt) { nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.repeat = !!t.repeat; }
+      if (nt) { nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.repeat = !!t.repeat; if (t.ch) nt.ch = Object.assign({ low:0, mid:0, high:0, comp:0 }, t.ch); nt.sweep = !!t.sweep; applyChannel(nt); }
     }
     rebuildAllParts(); renderTracks();
   } catch (err) { console.error(err); alert('Could not open that file — is it a Melodize project (.json)?'); }

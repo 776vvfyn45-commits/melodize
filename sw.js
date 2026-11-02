@@ -3,7 +3,7 @@
 // - HTML/JS/manifest: network-first, so updates show up as soon as you're online
 // - Everything else (Tone.js, instrument samples): cache-first, so it works offline after first use
 
-const CACHE_NAME = 'melodize-v17';
+const CACHE_NAME = 'melodize-v18';
 const APP_SHELL = [
   './',
   './index.html',
