@@ -477,6 +477,7 @@
       <button class="btn small ghost" id="stTrDn" title="Transpose every melody down a semitone">Key −1</button>
       <button class="btn small ghost" id="stHuman" title="Slightly loosen timing and velocity so it feels played, not programmed">Humanize</button>
       <button class="btn small ghost" id="stTight" title="Snap all melody notes to the Quantize grid">Tighten</button>
+      <button class="btn small ghost" id="stLock" title="Make every melody line up with the beat: finds the small speed change and shift that put your notes on the drum grid, then snaps them. Undo works.">Lock to beat</button>
       <button class="btn small ghost" id="stDouble" title="Play every melody at half speed (a half-time feel). Press again to go back to normal.">½ time</button>
       <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z"/></svg> Coach</button>
       <span class="mini" id="stInfo"></span>
@@ -1246,7 +1247,7 @@ async function onRecordingStopped(data, sr) {
       }
     } else {
       const ctxL = Tone.context.rawContext;
-      const latency = recMeta.playAlong ? Math.min(0.25, (ctxL.baseLatency || 0) + (ctxL.outputLatency || 0)) : 0;
+      const latency = (recMeta.playAlong || recMeta.countIn) ? Math.min(0.25, (ctxL.baseLatency || 0) + (ctxL.outputLatency || 0)) : 0;
       const free = !recMeta.countIn && !recMeta.playAlong;       // nothing to stay in time with → follow the singer
       const opts = { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, latency, trimLead: free, autoTempo: free && !recMeta.hadTracks, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot };
       const res = DSP.transcribe(data, sr, opts);
@@ -1255,9 +1256,14 @@ async function onRecordingStopped(data, sr) {
         alert("Didn't catch a clear melody there — try humming a little louder, closer to the mic, in a quiet room.");
       } else {
         const notes = res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel }));
+        const drumsHeard = tracks.some(t => t.type === 'drums');
         await addMelodyTrack(S.instrument, notes);
-        lastTake = { data, sr, opts, trackId: tracks[tracks.length - 1].id };
+        const nt = tracks[tracks.length - 1];
+        let lockMsg = '';
+        if (drumsHeard) { const r = lockTrackToBeat(nt, 0.06); buildPart(nt); renderTracks(); lockMsg = r.after < r.before - 0.01 ? 'Locked to your drum beat (timing deviation ' + (r.before * 100).toFixed(0) + '% → ' + (r.after * 100).toFixed(0) + '%).' : ''; }
+        lastTake = { data, sr, opts, trackId: nt.id, lock: drumsHeard };
         showTake(res);
+        if (lockMsg) $('#takeHint').insertAdjacentHTML('afterbegin', '<b style="color:var(--accent)">' + lockMsg + '</b><br>');
       }
     }
   } catch (err) {
@@ -1294,7 +1300,7 @@ $('#takeRe').addEventListener('click', async () => {
   let changedPitch = 0, changedTime = 0;
   notes.forEach((n, i) => { const o = before[i]; if (!o) { changedPitch++; return; } if (o.midi !== n.midi) changedPitch++; if (Math.abs(o.startB - n.startB) > 0.02) changedTime++; });
   if (before.length !== notes.length) changedPitch = Math.max(changedPitch, Math.abs(before.length - notes.length));
-  if (t) { t.notes = notes; buildPart(t); growBarsToFit(); renderTracks(); } else { await addMelodyTrack(S.instrument, notes); lastTake.trackId = tracks[tracks.length - 1].id; }
+  if (t) { t.notes = notes; if (lastTake.lock) lockTrackToBeat(t, 0.06); buildPart(t); growBarsToFit(); renderTracks(); } else { await addMelodyTrack(S.instrument, notes); lastTake.trackId = tracks[tracks.length - 1].id; }
   lastTake.opts = opts; showTake(res);
   const used = 'Key ' + (S.keyRoot === 'auto' ? 'auto' : DSP.NOTE_NAMES[S.keyRoot]) + ' · scale ' + (S.scale === 'auto' ? 'auto' : S.scale === 'off' ? 'off' : (SCALE_LABEL[S.scale] || S.scale)) + ' · quantize ' + (S.grid ? '1/' + (S.grid * 4) : 'off');
   const diff = (changedPitch || changedTime) ? (changedPitch + ' note' + (changedPitch === 1 ? '' : 's') + ' changed pitch, ' + changedTime + ' moved in time') : 'no notes changed — your sung notes already fit these settings';
@@ -2967,6 +2973,18 @@ $('#stTight').addEventListener('click', () => {
   stEdit('tightened to 1/' + (g * 4), t => t.notes.forEach(n => {
     const st = 1 / g; n.startB = Math.round(n.startB / st) * st; n.durB = Math.max(st, Math.round(n.durB / st) * st);
   }));
+});
+function lockTrackToBeat(t, maxStretch) {
+  const r = DSP.fitToGrid(t.notes, { stepBeats: 0.5, snapBeats: S.grid ? 1 / S.grid : 0.25, maxStretch: maxStretch == null ? 0.15 : maxStretch });
+  t.notes = r.notes; return r;
+}
+$('#stLock').addEventListener('click', () => {
+  const mel = tracks.filter(t => t.type === 'melody' && t.notes.length); if (!mel.length) { $('#stInfo').textContent = 'no melody tracks yet'; return; }
+  ST.undo.push(stSnap()); if (ST.undo.length > 40) ST.undo.shift(); ST.redo = [];
+  let msg = [];
+  mel.forEach(t => { const r = lockTrackToBeat(t); buildPart(t); const pct = (r.factor - 1) * 100, ms = Math.round(r.shiftB * spb() * 1000); msg.push(t.def.label + ': ' + (Math.abs(pct) < 0.5 ? 'speed kept' : (pct > 0 ? 'faster ' : 'slower ') + Math.abs(pct).toFixed(1) + '%') + ', shifted ' + ms + ' ms'); });
+  growBarsToFit(); $('#bars').value = S.bars; rebuildAllParts(); renderTracks();
+  $('#stInfo').textContent = 'Locked to the beat — ' + msg.join(' · ') + '. (Undo if you prefer the original.)';
 });
 $('#stDouble').addEventListener('click', e => {
   const mel = tracks.filter(t => t.type === 'melody'); if (!mel.length) { $('#stInfo').textContent = 'no melody tracks yet'; return; }

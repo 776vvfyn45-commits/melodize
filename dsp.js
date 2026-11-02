@@ -454,6 +454,32 @@ function snapToScale(midi, root, scaleName) {
   return best;
 }
 
+/* ---------- lock a played melody to the project's beat ----------
+   Finds the small speed change and time shift that make the notes land best on the grid (eighths by default),
+   then snaps them there. Notes are in beats: [{startB, durB, ...}]. */
+function fitToGrid(notes, opts) {
+  opts = opts || {};
+  const step = opts.stepBeats || 0.5, strength = opts.strength == null ? 1 : opts.strength, snapStep = opts.snapBeats || 0.25;
+  if (!notes.length) return { notes: [], factor: 1, shiftB: 0, before: 0, after: 0 };
+  const dev = (f, d) => { let c = 0; for (const n of notes) { const u = (n.startB * f + d) / step; c += Math.abs(u - Math.round(u)); } return c / notes.length; };
+  const base = dev(1, 0);
+  let best = { f: 1, d: 0, c: base };
+  const lim = opts.maxStretch == null ? 0.15 : opts.maxStretch;
+  for (let f = 1 - lim; f <= 1 + lim + 1e-9; f += 0.002) {
+    for (let d = -step / 2; d < step / 2; d += step / 40) {
+      const c = dev(f, d) + 0.35 * Math.abs(f - 1);          // gentle preference for "no change"
+      if (c < best.c - 1e-9) best = { f, d, c };
+    }
+  }
+  const out = notes.map(n => {
+    let st = Math.max(0, n.startB * best.f + best.d), du = Math.max(0.0625, n.durB * best.f);
+    const qs = Math.round(st / snapStep) * snapStep, qe = Math.max(qs + snapStep, Math.round((st + du) / snapStep) * snapStep);
+    st = st + (qs - st) * strength; du = du + ((qe - qs) - du) * strength;
+    return Object.assign({}, n, { startB: Math.max(0, st), durB: Math.max(0.0625, du) });
+  });
+  return { notes: out, factor: best.f, shiftB: best.d, before: base, after: dev(best.f, best.d) };
+}
+
 /* ---------- rhythm quantize ---------- */
 function quantizeNotes(notes, bpm, stepsPerBeat) {
   if (!stepsPerBeat || !bpm) return notes.map(n => Object.assign({}, n));
@@ -1479,6 +1505,6 @@ function singingRegions(data, sr, opts) {
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav, singingRegions, measureLufs, masterToLufs, brickwallLimit, peakOf, makeZip, crc32,
+  quantizeNotes, fitToGrid, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav, singingRegions, measureLufs, masterToLufs, brickwallLimit, peakOf, makeZip, crc32,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });
