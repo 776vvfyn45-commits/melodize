@@ -477,7 +477,7 @@
       <button class="btn small ghost" id="stTrDn" title="Transpose every melody down a semitone">Key −1</button>
       <button class="btn small ghost" id="stHuman" title="Slightly loosen timing and velocity so it feels played, not programmed">Humanize</button>
       <button class="btn small ghost" id="stTight" title="Snap all melody notes to the Quantize grid">Tighten</button>
-      <button class="btn small ghost" id="stDouble" title="Double all melody notes' length (half-time feel)">½ time</button>
+      <button class="btn small ghost" id="stDouble" title="Play every melody at half speed (a half-time feel). Press again to go back to normal.">½ time</button>
       <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z"/></svg> Coach</button>
       <span class="mini" id="stInfo"></span>
       <div class="hint" id="coachOut" style="display:none;width:100%"></div>
@@ -1284,13 +1284,21 @@ function showTake(res) {
   const tb = $('#takeTempo'); if (res.quantSkipped && res.suggestBpm) { tb.style.display = ''; tb.dataset.bpm = res.suggestBpm; tb.textContent = 'Match project tempo to ' + res.suggestBpm + ' BPM'; } else tb.style.display = 'none';
 }
 $('#takeRe').addEventListener('click', async () => {
-  if (!lastTake) return; const t = tracks.find(x => x.id === lastTake.trackId);
-  const opts = Object.assign({}, lastTake.opts, { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot, autoTempo: false, smartQuantize: S.grid ? false : true });
+  if (!lastTake) { $('#takeHint').textContent = 'Record a melody first, then use this to run it again.'; return; }
+  const t = tracks.find(x => x.id === lastTake.trackId);
+  const opts = Object.assign({}, lastTake.opts, { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot, autoTempo: false, trimLead: false, smartQuantize: S.grid ? false : true });
   const res = DSP.transcribe(lastTake.data, lastTake.sr, opts);
   if (!res.notes.length) { $('#takeHint').textContent = 'Nothing found in that take.'; return; }
   const notes = res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel }));
+  const before = t ? t.notes : [];
+  let changedPitch = 0, changedTime = 0;
+  notes.forEach((n, i) => { const o = before[i]; if (!o) { changedPitch++; return; } if (o.midi !== n.midi) changedPitch++; if (Math.abs(o.startB - n.startB) > 0.02) changedTime++; });
+  if (before.length !== notes.length) changedPitch = Math.max(changedPitch, Math.abs(before.length - notes.length));
   if (t) { t.notes = notes; buildPart(t); growBarsToFit(); renderTracks(); } else { await addMelodyTrack(S.instrument, notes); lastTake.trackId = tracks[tracks.length - 1].id; }
-  lastTake.opts = opts; showTake(res); $('#takeHint').insertAdjacentHTML('afterbegin', '<b style="color:var(--accent)">Re-analyzed.</b> ');
+  lastTake.opts = opts; showTake(res);
+  const used = 'Key ' + (S.keyRoot === 'auto' ? 'auto' : DSP.NOTE_NAMES[S.keyRoot]) + ' · scale ' + (S.scale === 'auto' ? 'auto' : S.scale === 'off' ? 'off' : (SCALE_LABEL[S.scale] || S.scale)) + ' · quantize ' + (S.grid ? '1/' + (S.grid * 4) : 'off');
+  const diff = (changedPitch || changedTime) ? (changedPitch + ' note' + (changedPitch === 1 ? '' : 's') + ' changed pitch, ' + changedTime + ' moved in time') : 'no notes changed — your sung notes already fit these settings';
+  $('#takeHint').insertAdjacentHTML('afterbegin', '<b style="color:var(--accent)">Re-analyzed with ' + used + ': ' + diff + '.</b><br>');
 });
 $('#takeTempo').addEventListener('click', e => { const b = parseInt(e.currentTarget.dataset.bpm, 10); if (b) { applyBpm(b); $('#takeRe').click(); } });
 $('#takeWav').addEventListener('click', () => {
@@ -2933,9 +2941,9 @@ document.addEventListener('keydown', e => {
 
 /* ----- studio tools: whole-project edits with undo/redo ----- */
 const ST = { undo: [], redo: [] };
-const stSnap = () => tracks.filter(t => t.type === 'melody').map(t => ({ id: t.id, notes: t.notes.map(n => Object.assign({}, n)) }));
+const stSnap = () => tracks.filter(t => t.type === 'melody').map(t => ({ id: t.id, half: !!t.half, notes: t.notes.map(n => Object.assign({}, n)) }));
 function stApply(snap) {
-  snap.forEach(x => { const t = tracks.find(y => y.id === x.id); if (t) { t.notes = x.notes.map(n => Object.assign({}, n)); buildPart(t); } });
+  snap.forEach(x => { const t = tracks.find(y => y.id === x.id); if (t) { t.notes = x.notes.map(n => Object.assign({}, n)); t.half = !!x.half; buildPart(t); } });
   renderTracks();
 }
 function stEdit(label, fn) {
@@ -2960,7 +2968,15 @@ $('#stTight').addEventListener('click', () => {
     const st = 1 / g; n.startB = Math.round(n.startB / st) * st; n.durB = Math.max(st, Math.round(n.durB / st) * st);
   }));
 });
-$('#stDouble').addEventListener('click', () => stEdit('half-time', t => t.notes.forEach(n => { n.startB *= 2; n.durB *= 2; })));
+$('#stDouble').addEventListener('click', e => {
+  const mel = tracks.filter(t => t.type === 'melody'); if (!mel.length) { $('#stInfo').textContent = 'no melody tracks yet'; return; }
+  const undoing = mel.some(t => t.half), f = undoing ? 0.5 : 2;
+  ST.undo.push(stSnap()); if (ST.undo.length > 40) ST.undo.shift(); ST.redo = [];
+  mel.forEach(t => { if (undoing && !t.half) return; t.notes.forEach(n => { n.startB *= f; n.durB *= f; }); t.half = !undoing; buildPart(t); });
+  growBarsToFit(); $('#bars').value = S.bars; rebuildAllParts(); renderTracks();
+  e.currentTarget.classList.toggle('on', !undoing); e.currentTarget.textContent = undoing ? '½ time' : '½ time ✓ (press again to undo)';
+  $('#stInfo').textContent = undoing ? 'back to normal speed' : 'melodies now play at half speed';
+});
 
 $('#stCoach').addEventListener('click', () => {
   const tips = [], mel = tracks.filter(t => t.type === 'melody'), drums = tracks.filter(t => t.type === 'drums'), aud = tracks.filter(t => t.type === 'audio');
