@@ -219,13 +219,27 @@
   .nova-orb{display:inline-block;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,var(--accent) 40%,var(--accent2));box-shadow:0 0 12px var(--accent)}
   ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#243049;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
   @media (max-width:640px){.wrap{padding:18px 12px 70px}.panel{padding:16px;border-radius:14px}.btn{padding:10px 14px}}
+
+  /* ---- SVG icon system ---- */
+  svg.i{width:1.15em;height:1.15em;flex:none;vertical-align:-.2em}
+  .btn svg.i,.tab svg.i{width:16px;height:16px;margin-right:2px}
+  .btn.icon svg.i{width:20px;height:20px;margin:0}
+  .inst-card .emoji{color:var(--accent);margin-bottom:8px;display:flex;justify-content:center}
+  .inst-card .emoji svg{width:30px;height:30px;stroke-width:1.5;transition:transform .2s,color .2s}
+  .inst-card:hover .emoji svg{transform:translateY(-2px) scale(1.06)}
+  .inst-card.active .emoji{color:#fff}
+  .inst-card.synth .emoji{color:var(--accent2)}
+  .track .ti{color:inherit}
+  .track .ti svg{width:24px;height:24px}
+  .adv-card .ai{color:var(--accent)}.adv-card .ai svg{width:24px;height:24px}
+  .empty .big svg{width:42px;height:42px;color:var(--sub);opacity:.6}
 </style>
 </head>
 <body>
 
 <div class="gate" id="gate">
   <div class="card">
-    <h1>🎙️ Melodize</h1>
+    <h1>Melodize</h1>
     <p>Hum, sing or beatbox — Melodize turns your voice into piano, guitar, strings, synths, EDM leads and full drum tracks. Layer them, mix, master and export a complete song. Needs microphone access. Use headphones when layering.</p>
     <button class="btn primary" id="enterBtn">Enable audio &amp; start</button>
   </div>
@@ -236,9 +250,9 @@
     <div class="chat-head">
       <button class="btn small ghost" id="chatBack">← Back to studio</button>
       <div class="chat-title"><span class="nova-orb"></span> Nova<small id="chatSub">Talk, type, or sing — I'll help you pick instruments and build beats.</small></div>
-      <label class="chk"><input type="checkbox" id="chatSpeak"> 🔊 Speak replies</label>
-      <button class="btn small" id="chatVoice" title="Hands-free conversation: talk, sing, talk again">🗣 Voice chat</button>
-      <button class="btn small" id="chatCfg" title="Connect a real AI (optional)">⚙ AI: built-in</button>
+      <label class="chk"><input type="checkbox" id="chatSpeak"> <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg> Speak replies</label>
+      <button class="btn small" id="chatVoice" title="Hands-free conversation: talk, sing, talk again"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg> Voice chat</button>
+      <button class="btn small" id="chatCfg" title="Connect a real AI (optional)"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg> AI: built-in</button>
     </div>
     <div class="tip" id="aiCfg" style="display:none;margin-top:10px">
       <b>Real AI mode (optional).</b> Paste your Melodize AI server address (see AI_SETUP.md). Leave blank to use the free built-in brain. Only a short text description of your tune is sent — never audio.
@@ -251,9 +265,9 @@
     <div class="chat-msgs" id="chatMsgs"></div>
     <div class="chat-chips" id="chatChips"></div>
     <div class="chat-input">
-      <button class="btn icon" id="chatTalk" title="Talk to me (voice → text)">🎙</button>
+      <button class="btn icon" id="chatTalk" title="Talk to me (voice → text)"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></button>
       <input type="text" id="chatText" placeholder="Type or talk… e.g. “make a trap beat”, “put it on violin”" autocomplete="off">
-      <button class="btn" id="chatSing" title="Sing or hum a tune">🎤 Sing</button>
+      <button class="btn" id="chatSing" title="Sing or hum a tune"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4"/></svg> Sing</button>
       <button class="btn primary" id="chatSend">Send</button>
     </div>
   </div>
@@ -262,16 +276,16 @@
 
 <div class="rollpage" id="rollPage" style="display:none">
   <div class="roll-bar">
-    <button class="btn small ghost" id="rollClose">✓ Done</button>
+    <button class="btn small ghost" id="rollClose"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg> Done</button>
     <b id="rollTitle" style="font-size:.9rem">Notes</b>
     <span class="grow"></span>
-    <button class="btn small" id="rollMode" title="Edit: tap/drag notes. Scroll: move around the roll with your finger">✏ Edit</button>
+    <button class="btn small" id="rollMode" title="Edit: tap/drag notes. Scroll: move around the roll with your finger"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3"/></svg> Edit</button>
     <button class="btn small" id="rollPlay">▶ Play</button>
   </div>
   <div class="roll-bar">
     <button class="btn small" id="rollUndo">↩ Undo</button>
     <button class="btn small" id="rollRedo">↪ Redo</button>
-    <button class="btn small" id="rollDel">🗑 Delete</button>
+    <button class="btn small" id="rollDel"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg> Delete</button>
     <button class="btn small" id="rollDup">⧉ Copy</button>
     <button class="btn small" id="rollDn">♭ −1</button>
     <button class="btn small" id="rollUp">♯ +1</button>
@@ -280,7 +294,7 @@
     <button class="btn small" id="rollQ">⌗ Quantize</button>
     <label class="mini" style="font-size:.75rem;color:var(--sub)">Snap <select id="rollSnap"><option value="1">1 beat</option><option value="0.5">1/2</option><option value="0.25" selected>1/4</option><option value="0.125">1/8</option><option value="0">Off</option></select></label>
     <label class="mini" style="font-size:.75rem;color:var(--sub)">Vel <input type="range" id="rollVel" min="0.1" max="1" step="0.01" value="0.85"></label>
-    <button class="btn small" id="rollZm">🔍−</button><button class="btn small" id="rollZp">🔍+</button>
+    <button class="btn small" id="rollZm"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg> −</button><button class="btn small" id="rollZp"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M16 16l4 4"/></svg> +</button>
   </div>
   <div class="roll-hint" id="rollHint">Tap empty space to add a note · tap a note to select · drag to move · drag the right edge to resize.</div>
   <div class="roll-body" id="rollBody"><canvas class="roll-keys" id="rollKeys"></canvas><div class="roll-scroll" id="rollScroll"><canvas id="rollGrid"></canvas></div></div>
@@ -291,7 +305,7 @@
     <div class="logo"><svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect x="2" y="2" width="44" height="44" rx="12" fill="#0f1521" stroke="url(#lg)" stroke-width="2"/><g fill="url(#lg)"><rect x="10" y="20" width="4" height="8" rx="2"/><rect x="17" y="13" width="4" height="22" rx="2"/><rect x="24" y="17" width="4" height="14" rx="2"/><rect x="31" y="10" width="4" height="28" rx="2"/><rect x="38" y="21" width="3" height="6" rx="1.5"/></g></svg><span class="nm">Melodize <span class="sub">voice → full song studio</span></span></div>
     <div style="display:flex;align-items:center;gap:10px">
       <button class="btn small nova" id="openChat"><span class="nova-orb"></span> Talk to Nova</button>
-      <button class="btn small" id="installBtn" style="display:none">⬇ Install app</button>
+      <button class="btn small" id="installBtn" style="display:none"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Install app</button>
       <span class="status-pill" id="statusPill">starting…</span>
     </div>
   </header>
@@ -335,8 +349,8 @@
       </div>
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="humanizeChk" checked> Humanize drums</label>
       <div class="spacer"></div>
-      <button class="btn small ghost" id="saveBtn">💾 Save project</button>
-      <button class="btn small ghost" id="loadBtn">📂 Open project</button>
+      <button class="btn small ghost" id="saveBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/></svg> Save project</button>
+      <button class="btn small ghost" id="loadBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Open project</button>
       <input type="file" id="loadFile" accept=".json,application/json" style="display:none">
     </div>
   </section>
@@ -345,11 +359,11 @@
   <section class="panel">
     <h2>Add a track</h2>
     <div class="tabs" id="modeTabs">
-      <button class="tab active" data-mode="melody">🎤 Sing / hum a melody</button>
-      <button class="tab" data-mode="beatbox">🥁 Beatbox → drums</button>
-      <button class="tab" data-mode="drums">🎛 Drum machine</button>
-      <button class="tab" data-mode="vocal">🎙 Real voice</button>
-      <button class="tab" data-mode="advisor">✦ Ask Nova</button>
+      <button class="tab active" data-mode="melody"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg> Sing / hum a melody</button>
+      <button class="tab" data-mode="beatbox"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="10" rx="8" ry="3"/><path d="M4 10v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/><path d="M5 3l6 5M19 3l-6 5"/></svg> Beatbox → drums</button>
+      <button class="tab" data-mode="drums"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 12h16M12 4v16"/></svg> Drum machine</button>
+      <button class="tab" data-mode="vocal"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4"/></svg> Real voice</button>
+      <button class="tab" data-mode="advisor"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.800L19 21l-.8-2.2L16 18l2.2-.800z"/></svg> Ask Nova</button>
     </div>
 
     <div id="melodySection">
@@ -402,10 +416,10 @@
       <div class="slider-row">Master <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.85"></div>
       <div class="slider-row">Compression <input type="range" id="compAmt" min="0" max="1" step="0.01" value="0.4"></div>
       <div class="slider-row">Warmth <input type="range" id="warmth" min="-1" max="1" step="0.01" value="0"></div>
-      <button class="btn ghost" id="arrangeBtn" title="Turn your loop into a 16-bar song: intro, then everything comes in">🎼 Arrange song</button>
-      <button class="btn ghost" id="autoMixBtn" title="Balance levels, pan and reverb automatically">✨ Auto-mix</button>
-      <button class="btn ghost" id="midiBtn" title="Open your song in FL Studio, Ableton, Logic, GarageBand…">⬇ MIDI (.mid)</button>
-      <button class="btn ghost" id="exportBtn">⬇ Export song (.wav)</button>
+      <button class="btn ghost" id="arrangeBtn" title="Turn your loop into a 16-bar song: intro, then everything comes in"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg> Arrange song</button>
+      <button class="btn ghost" id="autoMixBtn" title="Balance levels, pan and reverb automatically"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20L16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3L21 14l-1.3.700L19 16l-.7-1.3L17 14l1.3-.700z"/></svg> Auto-mix</button>
+      <button class="btn ghost" id="midiBtn" title="Open your song in FL Studio, Ableton, Logic, GarageBand…"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> MIDI (.mid)</button>
+      <button class="btn ghost" id="exportBtn"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Export song (.wav)</button>
     </div>
     <div class="transport" style="margin-bottom:6px">
       <span class="mini">Studio tools</span>
@@ -416,7 +430,7 @@
       <button class="btn small ghost" id="stHuman" title="Slightly loosen timing and velocity so it feels played, not programmed">Humanize</button>
       <button class="btn small ghost" id="stTight" title="Snap all melody notes to the Quantize grid">Tighten</button>
       <button class="btn small ghost" id="stDouble" title="Double all melody notes' length (half-time feel)">½ time</button>
-      <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song">💡 Coach</button>
+      <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z"/></svg> Coach</button>
       <span class="mini" id="stInfo"></span>
       <div class="hint" id="coachOut" style="display:none;width:100%"></div>
     </div>
@@ -425,7 +439,7 @@
       <label class="chk">Space <select id="roomSel"><option value="room">Small room</option><option value="plate">Studio plate</option><option value="hall" selected>Concert hall</option><option value="cathedral">Cathedral</option></select></label>
       <label class="chk">Loudness <select id="expTarget"><option value="-14">Streaming (−14 LUFS)</option><option value="-9">Loud (−9 LUFS)</option><option value="-18">Quiet (−18 LUFS)</option><option value="0">Leave as is</option></select></label>
       <label class="chk">Format <select id="expBits"><option value="16">WAV 16-bit</option><option value="24">WAV 24-bit</option></select></label>
-      <button class="btn ghost" id="stemsBtn" title="Every track as its own WAV (before master processing) + the finished mix, in one ZIP — drop it into any DAW">⬇ Stems (.zip)</button>
+      <button class="btn ghost" id="stemsBtn" title="Every track as its own WAV (before master processing) + the finished mix, in one ZIP — drop it into any DAW"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg> Stems (.zip)</button>
       <span class="hint" id="mixInfo" style="margin:0"></span>
     </div>
     <div class="prog"><div id="progFill"></div></div>
@@ -437,7 +451,7 @@
     <div class="hint">Every layer lands here. Mix it: volume, pan, reverb and echo per track — turn on <b>Pump</b> on a synth to make it duck on every kick (the classic EDM sidechain).</div>
     <canvas id="timeline" style="display:none;width:100%;height:20px;border-radius:8px;background:#0a0b12;margin-bottom:10px"></canvas>
     <div id="trackList"></div>
-    <div class="empty" id="emptyState"><div class="big">🎵</div>No tracks yet — add a drum pattern or record your first hum above.</div>
+    <div class="empty" id="emptyState"><div class="big"><svg class="i big-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></div>No tracks yet — add a drum pattern or record your first hum above.</div>
   </section>
 
   <footer>
@@ -753,6 +767,8 @@ function makeTrackChain() {
 }
 
 /* ----- auto-mix: sensible levels, low-cut, stereo spread and reverb by role ----- */
+const ICO = {"piano": "<rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 12v6M12 12v6M16 12v6\"/><path d=\"M7 6v6M11 6v6M15 6v6\" stroke-width=\"2.6\"/>", "guitar": "<path d=\"M20 4l-8 8M19 3l2 2\"/><circle cx=\"9\" cy=\"15\" r=\"5\"/><circle cx=\"9\" cy=\"15\" r=\"1.4\"/>", "eguitar": "<path d=\"M20 4l-9 9M19 3l2 2\"/><path d=\"M5 12l7 7-3 2.5a3 3 0 0 1-4.2 0l-2.3-2.3a3 3 0 0 1 0-4.2z\"/><path d=\"M7 16l2 2\"/>", "nylon": "<path d=\"M20 4l-8 8M19 3l2 2\"/><path d=\"M5 11a4.5 4.5 0 0 0 0 7c2 2 6 2 7-1 1-3-3-3-3-6s-2.5-3.5-4-0z\"/><circle cx=\"8\" cy=\"15\" r=\"1.2\"/>", "bass": "<path d=\"M21 3l-9.5 9.5M19.5 2l3 3\"/><path d=\"M5 13l6 6-2.5 2.5a3 3 0 0 1-4.2 0l-2-2a3 3 0 0 1 0-4.2z\"/><path d=\"M7.5 16.5l1.5 1.5\"/>", "violin": "<path d=\"M12 2v5\"/><path d=\"M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1 2-1 3s2 1.5 2 4.5a4 4 0 0 1-8 0C7.5 13.5 9.5 13 9.5 12S9.5 10.5 9.5 9z\"/><path d=\"M10.5 14.5l.5 2.5M13.5 14.5l-.5 2.5\"/><path d=\"M9 21h6\"/>", "cello": "<path d=\"M12 1v6\"/><path d=\"M9 9.5a3 3 0 0 1 6 0c0 1.5-1 2-1 3.5s2.5 2 2.5 4.5a4.5 4.5 0 0 1-9 0C7.5 15 10 14.5 10 13S9 11 9 9.5z\"/><path d=\"M12 22v-1M10.5 15l.5 2.5M13.5 15l-.5 2.5\"/>", "flute": "<path d=\"M2.5 10.5h19v3h-19z\" transform=\"rotate(-18 12 12)\"/><circle cx=\"8\" cy=\"12.3\" r=\".7\"/><circle cx=\"12\" cy=\"11\" r=\".7\"/><circle cx=\"16\" cy=\"9.7\" r=\".7\"/>", "clarinet": "<path d=\"M10 2h4v14h-4z\"/><path d=\"M8 21l2-5h4l2 5z\"/><circle cx=\"12\" cy=\"6\" r=\".8\"/><circle cx=\"12\" cy=\"10\" r=\".8\"/><circle cx=\"12\" cy=\"13\" r=\".8\"/>", "sax": "<path d=\"M8 3v12.5a5 5 0 0 0 10 0V13\"/><path d=\"M15.5 13h5\"/><circle cx=\"8\" cy=\"7\" r=\".8\"/><circle cx=\"8\" cy=\"10.5\" r=\".8\"/><path d=\"M6 3h4\"/>", "trumpet": "<path d=\"M3 12h10\"/><rect x=\"5\" y=\"8\" width=\"7\" height=\"8\" rx=\"3.5\"/><path d=\"M13 12l8-5v10z\"/><path d=\"M8 5v3\"/>", "trombone": "<path d=\"M3 9h13M3 13h13M3 9v4\"/><path d=\"M16 9l5-3v10l-5-3\"/><path d=\"M5 13v5h3\"/>", "horn": "<circle cx=\"11\" cy=\"12\" r=\"7.5\"/><circle cx=\"11\" cy=\"12\" r=\"3.5\"/><path d=\"M18 9c2 0 3.5-1 4-3M18.5 15.5c2 1 3 2 3.5 4\"/>", "harp": "<path d=\"M18 4v17M18 4C13 2.5 7 5 6 10l8 11h4\"/><path d=\"M15.5 3.8V19M13 3.8v14M10.5 5.2v9M8.5 7.5v5\"/>", "organ": "<path d=\"M3 21h18\"/><rect x=\"4\" y=\"9\" width=\"3\" height=\"12\" rx=\"1.5\"/><rect x=\"8.5\" y=\"4\" width=\"3\" height=\"17\" rx=\"1.5\"/><rect x=\"13\" y=\"4\" width=\"3\" height=\"17\" rx=\"1.5\"/><rect x=\"17.5\" y=\"9\" width=\"3\" height=\"12\" rx=\"1.5\"/>", "harmonium": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"10\" rx=\"2\"/><path d=\"M7 5v10M11 5v10M15 5v10M19 5v10\"/><path d=\"M5 19h14M8 15v4M12 15v4M16 15v4\"/>", "xylo": "<rect x=\"3.5\" y=\"4\" width=\"3.5\" height=\"16\" rx=\"1.5\"/><rect x=\"8.5\" y=\"6.5\" width=\"3.5\" height=\"11\" rx=\"1.5\"/><rect x=\"13.5\" y=\"9\" width=\"3.5\" height=\"6\" rx=\"1.5\"/><path d=\"M20 4l-2 5\"/><circle cx=\"20.3\" cy=\"3.5\" r=\"1.2\"/>", "supersaw": "<path d=\"M2 17l5-10v10l5-10v10l5-10v10l5-10\"/>", "pluck": "<path d=\"M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z\"/>", "pad": "<path d=\"M2 8c3-4 5-4 8 0s5 4 8 0 3-3 4-2M2 13c3-4 5-4 8 0s5 4 8 0 3-3 4-2M2 18c3-4 5-4 8 0s5 4 8 0 3-3 4-2\"/>", "sub": "<path d=\"M2 12c2-8 4-8 6 0s4 8 6 0 4-8 6 0\"/><path d=\"M2 20h20\"/>", "wobble": "<path d=\"M2 12c1-6 2-6 3 0s2 6 3 0 1-4 2.5 0 1.5 6 3 0 1-3 2 0 1.5 3 3 0 2-6 3-6\"/>", "acid": "<path d=\"M9 3h6M10 3v6l-5.5 9.5a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 9V3\"/><path d=\"M7.5 15h9\"/>", "bell": "<path d=\"M6 17v-5a6 6 0 0 1 12 0v5l2 2H4z\"/><path d=\"M12 3v3M10 21a2 2 0 0 0 4 0\"/>", "chip": "<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"2\"/><rect x=\"10\" y=\"10\" width=\"4\" height=\"4\" rx=\".5\"/><path d=\"M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3\"/>", "drums": "<ellipse cx=\"12\" cy=\"10\" rx=\"8\" ry=\"3\"/><path d=\"M4 10v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7\"/><path d=\"M5 3l6 5M19 3l-6 5\"/>", "mic": "<rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6\"/>", "grid": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M4 12h16M12 4v16\"/>", "nova": "<path d=\"M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z\"/><path d=\"M19 15l.8 2.2L22 18l-2.2.800L19 21l-.8-2.2L16 18l2.2-.800z\"/>", "save": "<path d=\"M5 3h11l3 3v15H5z\"/><path d=\"M8 3v5h7V3M8 21v-7h8v7\"/>", "open": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "down": "<path d=\"M12 4v11M7 11l5 5 5-5M5 20h14\"/>", "wand": "<path d=\"M4 20L16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3L21 14l-1.3.700L19 16l-.7-1.3L17 14l1.3-.700z\"/>", "score": "<path d=\"M9 18V5l11-2v13\"/><circle cx=\"6.5\" cy=\"18\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"16\" r=\"2.5\"/>", "bulb": "<path d=\"M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z\"/>", "chat": "<path d=\"M4 5h16v11H9l-5 4z\"/>", "check": "<path d=\"M5 12.5l4.5 4.5L19 7\"/>", "trash": "<path d=\"M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6\"/>", "wave": "<path d=\"M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4\"/>", "speaker": "<path d=\"M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11\"/>", "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2\"/>", "pencil": "<path d=\"M4 20l1-4L16 5l3 3L8 19zM14 7l3 3\"/>", "search": "<circle cx=\"11\" cy=\"11\" r=\"6\"/><path d=\"M16 16l4 4\"/>"};
+const ico = (k, c) => '<svg class="' + (c || 'i') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICO[k] || ICO.wave) + '</svg>';
 const BASSY = ['bass','sub','wobble','acid'], LOWISH = ['cello','trombone','horn','organ','harmonium'], PADDY = ['pad','organ','harmonium','cello','harp'];
 const TRIM = { supersaw: 0.62, wobble: 0.6, acid: 0.7, chip: 0.62, sub: 0.9, pluck: 0.85, pad: 0.8, bell: 0.85, eguitar: 0.8, trumpet: 0.75, sax: 0.8, xylo: 0.8 };
 function hpFor(t) { return t.type === 'audio' ? 80 : t.type === 'drums' ? 28 : BASSY.indexOf(t.instKey) !== -1 ? 30 : LOWISH.indexOf(t.instKey) !== -1 ? 60 : 110; }
@@ -912,7 +928,7 @@ function renderInstGrids() {
     Object.keys(defs).forEach(key => {
       const d = defs[key], card = document.createElement('div');
       card.className = 'inst-card' + (synth ? ' synth' : '') + (key === S.instrument ? ' active' : '');
-      card.innerHTML = '<span class="emoji">' + d.emoji + '</span><span class="name">' + d.label + '</span>';
+      card.innerHTML = '<span class="emoji">' + ico(d.key || key) + '</span><span class="name">' + d.label + '</span>';
       card.addEventListener('click', () => { S.instrument = key; renderInstGrids(); previewInstrument(key); });
       grid.appendChild(card);
     });
@@ -1320,10 +1336,10 @@ function renderTracks() {
     const title = isDrum ? 'Drums <small>· ' + (t.pattern.steps / 16) + ' bar loop</small>'
                 : isAudio ? 'Your voice <small>· ' + t.durSec.toFixed(1) + ' s</small>'
                 : t.def.label + ' <small>· ' + t.notes.length + ' notes</small>';
-    const emoji = isDrum ? '🥁' : isAudio ? '🎙' : t.def.emoji;
+    const emoji = isDrum ? ico('drums') : isAudio ? ico('mic') : ico(t.instKey);
     el.innerHTML =
       '<div class="track-top">' +
-        '<div class="ti" style="background:' + t.color + '22;border:1px solid ' + t.color + '55">' + emoji + '</div>' +
+        '<div class="ti" style="background:' + t.color + '22;border:1px solid ' + t.color + '55;color:' + t.color + '">' + emoji + '</div>' +
         '<div class="body"><div class="name">' + title + '</div>' +
           (isDrum ? '<div class="drumgrid"></div>' : '<canvas class="roll"></canvas>') +
         '</div>' +
@@ -1508,7 +1524,7 @@ async function auditionMelody(key, notes, oct) {
 }
 
 const STARTER = () => [
-  { label: '🎤 Sing a tune', fn: () => chatSing('melody') },
+  { label: 'Sing a tune', fn: () => chatSing('melody') },
   { label: 'Make a beat', say: 'make a beat' },
   { label: 'What can you do?', say: 'what can you do' }
 ];
@@ -1518,7 +1534,7 @@ function instrumentCard(r, i) {
   const def = ALL_INST[r.key];
   const card = document.createElement('div'); card.className = 'adv-card' + (i === 0 ? ' best' : '');
   card.innerHTML =
-    '<div class="ai">' + def.emoji + '</div>' +
+    '<div class="ai">' + ico(r.key) + '</div>' +
     '<div><div class="an">' + def.label + ' <span style="color:var(--sub);font-weight:400;font-size:.76rem">' + r.pct + '% match</span>' + (i === 0 ? ' <span class="badge">Best</span>' : '') + '</div>' +
       '<div class="ar"></div><div class="pctbar"><div style="width:' + r.pct + '%"></div></div></div>' +
     '<div class="adv-btns"><button class="btn small hear">▶ Hear</button><button class="btn small primary use">＋ Add</button></div>';
@@ -1773,7 +1789,7 @@ const ACKS = ['Sure thing!', 'Absolutely!', 'Yes we can!', 'On it!', 'Love that 
 function suggestNext() {
   const mel = tracks.filter(t => t.type === 'melody'), hasDr = !!lastDrum(), hasBass = mel.some(t => BASS_KEYS.indexOf(t.instKey) !== -1);
   const out = [];
-  if (!chat.take && !mel.length) { out.push({ label: '🎤 Sing a tune', fn: () => chatSing('melody') }, { label: '🥁 Beatbox a rhythm', fn: () => chatSing('beatbox') }, { label: 'Make a beat', say: 'make a beat' }, { label: 'Surprise me', say: 'surprise me' }); return out; }
+  if (!chat.take && !mel.length) { out.push({ label: 'Sing a tune', fn: () => chatSing('melody') }, { label: '🥁 Beatbox a rhythm', fn: () => chatSing('beatbox') }, { label: 'Make a beat', say: 'make a beat' }, { label: 'Surprise me', say: 'surprise me' }); return out; }
   if (chat.take && !mel.length) out.push({ label: 'Which instrument suits it?', say: 'which instrument suits this' }, { label: 'Build me a full song', say: 'build me a full song' });
   if (mel.some(t => !t.isBand && !t.isPartner) && !mel.some(t => t.isBand)) out.push({ label: '🎸 Build a band', say: 'build a band' });
   if (mel.length && !mel.some(t => t.isPartner)) out.push({ label: '🎶 Answer me', say: 'answer me' });
