@@ -260,6 +260,8 @@
   .lib-ic{color:var(--accent)}.lib-ic svg{width:22px;height:22px}
   .lib-nm{flex:1;min-width:0}.lib-nm b{display:block;font-size:.88rem}.lib-nm small{color:var(--sub);font-size:.72rem}
   input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-family:inherit;font-size:.82rem}
+  .takebar{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(45,212,191,.05)}
+  .takehint{font-size:.8rem;color:var(--text);line-height:1.5;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -440,6 +442,14 @@
         <span class="analyzing" id="analyzing" style="display:none"><span class="spin"></span>Analyzing…</span>
       </div>
       <div class="recinfo" id="recInfo"></div>
+      <div class="takebar" id="takeBar" style="display:none">
+        <div class="takehint" id="takeHint"></div>
+        <div class="transport">
+          <button class="btn small primary" id="takeRe" title="Run the same recording again using the Key, Snap to scale and Quantize chosen in the Project panel">Re-analyze with my Key / Scale / Quantize</button>
+          <button class="btn small ghost" id="takeTempo" style="display:none">Match project tempo to my singing</button>
+          <button class="btn small ghost" id="takeWav" title="Download this recording so you can keep it or send it for checking">Save this take (.wav)</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1238,20 +1248,16 @@ async function onRecordingStopped(data, sr) {
       const ctxL = Tone.context.rawContext;
       const latency = recMeta.playAlong ? Math.min(0.25, (ctxL.baseLatency || 0) + (ctxL.outputLatency || 0)) : 0;
       const free = !recMeta.countIn && !recMeta.playAlong;       // nothing to stay in time with → follow the singer
-      const res = DSP.transcribe(data, sr, {
-        bpm: S.bpm, grid: S.grid || 0, scale: S.scale, latency,
-        trimLead: free, autoTempo: free && !recMeta.hadTracks,
-        keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot
-      });
+      const opts = { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, latency, trimLead: free, autoTempo: free && !recMeta.hadTracks, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot };
+      const res = DSP.transcribe(data, sr, opts);
       if (res.tempo && res.bpm && res.bpm !== S.bpm) applyBpm(res.bpm);
       if (!res.notes.length) {
         alert("Didn't catch a clear melody there — try humming a little louder, closer to the mic, in a quiet room.");
       } else {
         const notes = res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel }));
         await addMelodyTrack(S.instrument, notes);
-        const keyTxt = res.key ? res.key.name : '—';
-        const tune = res.tuningCents ? (', tuning corrected ' + (res.tuningCents > 0 ? '+' : '') + res.tuningCents + '¢') : '';
-        recInfo.textContent = 'Caught ' + res.notes.length + ' notes · key ≈ ' + keyTxt + tune + (res.tempo ? ' · tempo matched to your singing: ' + res.bpm + ' BPM' : '') + '.';
+        lastTake = { data, sr, opts, trackId: tracks[tracks.length - 1].id };
+        showTake(res);
       }
     }
   } catch (err) {
@@ -1260,6 +1266,36 @@ async function onRecordingStopped(data, sr) {
   }
   analyzingEl.style.display = 'none';
 }
+
+
+/* ----- review the last take: what was heard, and re-run it with the key / scale the player knows ----- */
+let lastTake = null;
+const SCALE_LABEL = { major: 'major', minor: 'minor', majorPent: 'major pentatonic', minorPent: 'minor pentatonic', blues: 'blues' };
+function showTake(res) {
+  const bar = $('#takeBar'), hint = $('#takeHint'); bar.style.display = 'block';
+  const keyTxt = res.scaleInfo ? DSP.midiToNoteName(60 + res.scaleInfo.root).replace(/\d+$/, '') + ' ' + SCALE_LABEL[res.scaleInfo.scale] : (res.key ? res.key.name : '—');
+  const tune = res.tuningCents ? (', tuning corrected ' + (res.tuningCents > 0 ? '+' : '') + res.tuningCents + '¢') : '';
+  let txt = '<b>Caught ' + res.notes.length + ' notes</b> · key I heard: <b>' + keyTxt + '</b>' + tune + (res.tempo ? ' · tempo matched to your singing: ' + res.bpm + ' BPM' : '') + '.';
+  if (res.scaleInfo) txt += ' Notes you sang clearly are kept; uncertain ones are pulled into this key.';
+  else txt += ' I did not snap anything to a scale (your notes fit no single key well) — each note is the nearest semitone to what you sang.';
+  if (res.quantSkipped) txt += '<br>Your timing did not line up with the ' + S.bpm + ' BPM grid, so I kept your own rhythm instead of bending it.' + (res.suggestBpm ? ' You sang at about <b>' + res.suggestBpm + ' BPM</b>.' : '');
+  txt += '<br>If something is off: set the <b>Key</b> and <b>Snap to scale</b> above to what you know you sang, then press Re-analyze.';
+  hint.innerHTML = txt; $('#recInfo').textContent = '';
+  const tb = $('#takeTempo'); if (res.quantSkipped && res.suggestBpm) { tb.style.display = ''; tb.dataset.bpm = res.suggestBpm; tb.textContent = 'Match project tempo to ' + res.suggestBpm + ' BPM'; } else tb.style.display = 'none';
+}
+$('#takeRe').addEventListener('click', async () => {
+  if (!lastTake) return; const t = tracks.find(x => x.id === lastTake.trackId);
+  const opts = Object.assign({}, lastTake.opts, { bpm: S.bpm, grid: S.grid || 0, scale: S.scale, keyRoot: S.keyRoot === 'auto' ? null : S.keyRoot, autoTempo: false, smartQuantize: S.grid ? false : true });
+  const res = DSP.transcribe(lastTake.data, lastTake.sr, opts);
+  if (!res.notes.length) { $('#takeHint').textContent = 'Nothing found in that take.'; return; }
+  const notes = res.notes.map(n => ({ midi: n.midi, startB: n.start / spb(), durB: n.dur / spb(), vel: n.vel }));
+  if (t) { t.notes = notes; buildPart(t); growBarsToFit(); renderTracks(); } else { await addMelodyTrack(S.instrument, notes); lastTake.trackId = tracks[tracks.length - 1].id; }
+  lastTake.opts = opts; showTake(res); $('#takeHint').insertAdjacentHTML('afterbegin', '<b style="color:var(--accent)">Re-analyzed.</b> ');
+});
+$('#takeTempo').addEventListener('click', e => { const b = parseInt(e.currentTarget.dataset.bpm, 10); if (b) { applyBpm(b); $('#takeRe').click(); } });
+$('#takeWav').addEventListener('click', () => {
+  if (!lastTake) return; download(new Blob([DSP.encodeWav([lastTake.data], lastTake.sr, 16)], { type: 'audio/wav' }), 'melodize-take.wav');
+});
 
 /* =====================================================================
    6. TRACKS

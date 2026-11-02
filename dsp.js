@@ -268,6 +268,52 @@ function estimateTuningOffset(frames) {
   return Math.max(-0.45, Math.min(0.45, off));
 }
 
+/* pitch of a note = the steady, loud middle of it (ignores the scoop into the note, the quiet "m" tail and breaths) */
+function stablePitch(vals, rms, hopSec) {
+  const n = vals.length;
+  if (n < 6) return median(vals);
+  const skipHead = Math.min(Math.round(0.05 / hopSec), Math.floor(n * 0.25)), skipTail = Math.floor(n * 0.15);
+  const idx = []; for (let i = skipHead; i < n - skipTail; i++) idx.push(i);
+  if (idx.length < 3) return median(vals);
+  const mr = Math.max.apply(null, idx.map(i => rms[i])) || 1;
+  let keep = idx.filter(i => rms[i] >= mr * 0.45); if (keep.length < 3) keep = idx;
+  const m0 = median(keep.map(i => vals[i]));
+  const inl = keep.filter(i => Math.abs(vals[i] - m0) < 0.6); const use = inl.length >= 3 ? inl : keep;
+  // energy-weighted median
+  const arr = use.map(i => ({ v: vals[i], w: rms[i] + 1e-9 })).sort((a, b) => a.v - b.v);
+  let tot = 0; arr.forEach(a => { tot += a.w; });
+  let acc = 0; for (const a of arr) { acc += a.w; if (acc >= tot / 2) return a.v; }
+  return arr[arr.length - 1].v;
+}
+
+/* people drift in and out of tune slowly: follow that drift note by note so each note lands on the semitone they meant */
+function trackTuningDrift(segs) {
+  const N = segs.length; if (N < 2) return segs;
+  // global centre: circular mean of how far each note sits from the nearest semitone (weighted by length)
+  let sx = 0, sy = 0, wt = 0;
+  segs.forEach(n => { const f = n.rawMidi - Math.round(n.rawMidi), w = Math.max(0.08, n.dur); sx += w * Math.cos(2 * Math.PI * f); sy += w * Math.sin(2 * Math.PI * f); wt += w; });
+  const R = Math.sqrt(sx * sx + sy * sy) / (wt || 1);
+  const centre = R > 0.3 ? Math.atan2(sy, sx) / (2 * Math.PI) : 0;
+  const S = 17, SPAN = 0.2, offs = []; for (let k = 0; k < S; k++) offs.push(centre - SPAN + k * (2 * SPAN / (S - 1)));
+  const cost = (x, o) => { const y = x - o, d = y - Math.round(y); return d * d; };
+  const lam = 6, mu = 1.5;
+  const D = [], B = [];
+  for (let k = 0; k < N; k++) {
+    D.push(new Array(S).fill(0)); B.push(new Array(S).fill(0));
+    for (let a = 0; a < S; a++) {
+      const c = cost(segs[k].rawMidi, offs[a]) + mu * (offs[a] - centre) ** 2;
+      if (k === 0) { D[k][a] = c; continue; }
+      let best = Infinity, bi = 0;
+      for (let b = 0; b < S; b++) { const v = D[k - 1][b] + lam * (offs[a] - offs[b]) ** 2; if (v < best) { best = v; bi = b; } }
+      D[k][a] = best + c; B[k][a] = bi;
+    }
+  }
+  let a = 0; for (let i = 1; i < S; i++) if (D[N - 1][i] < D[N - 1][a]) a = i;
+  const path = new Array(N);
+  for (let k = N - 1; k >= 0; k--) { path[k] = offs[a]; a = B[k][a]; }
+  return segs.map((n, k) => Object.assign({}, n, { rawOrig: n.rawMidi, driftOff: path[k], rawMidi: n.rawMidi - path[k] }));
+}
+
 /* ---------- segmentation into notes ---------- */
 function segmentNotes(frames, hopSec, tuningOffset) {
   const notes = [];
@@ -323,7 +369,7 @@ function segmentNotes(frames, hopSec, tuningOffset) {
   }
   let maxRms = 0; notes.forEach(n => { n.meanRms = n.rms.reduce((a, b) => a + b, 0) / n.rms.length; maxRms = Math.max(maxRms, n.meanRms); });
   return notes.map(n => ({
-    rawMidi: median(n.vals),
+    rawMidi: stablePitch(n.vals, n.rms, hopSec),
     start: n.start, dur: n.end - n.start,
     vel: Math.max(0.45, Math.min(1, 0.45 + 0.55 * (n.meanRms / (maxRms || 1))))
   }));
@@ -360,6 +406,39 @@ const SCALES = {
   minorPent:  [0,3,5,7,10],
   blues:      [0,3,5,6,7,10]
 };
+/* best-fitting key AND scale type: how well do the sung pitches sit on each candidate scale? (bigger scales are penalised so pentatonic wins when it is enough) */
+const SCALE_ACCEPT = 0.55;
+const SCALE_PENALTY = { majorPent: 0.0, minorPent: 0.0, blues: 0.004, major: 0.012, minor: 0.012 };
+function detectScale(notes, fixedRoot) {
+  const pts = notes.map(n => ({ x: (n.rawOrig != null ? n.rawOrig : n.rawMidi), w: Math.max(0.1, Math.min(1.5, n.dur || 0.3)) }));
+  const W = pts.reduce((a, p) => a + p.w, 0) || 1, res = [], meanByScale = {};
+  const allRoots = [0,1,2,3,4,5,6,7,8,9,10,11], roots = typeof fixedRoot === 'number' ? [fixedRoot] : allRoots;
+  const costOf = (name, r) => {
+    const tones = SCALES[name].map(d => (r + d) % 12); let c = 0;
+    for (const p of pts) {
+      const pc = ((p.x % 12) + 12) % 12; let dm = 6;
+      for (const t of tones) { let d = Math.abs(pc - t); if (d > 6) d = 12 - d; if (d < dm) dm = d; }
+      c += p.w * Math.min(dm, 1.2) ** 2;
+    }
+    return c / W;
+  };
+  for (const name of Object.keys(SCALES)) {
+    let sum = 0; allRoots.forEach(r => { sum += costOf(name, r); }); meanByScale[name] = sum / 12;
+    for (const r of roots) { const c = costOf(name, r); res.push({ root: r, scale: name, cost: c + (SCALE_PENALTY[name] || 0.01), rel: c / (meanByScale[name] || 1) }); }
+  }
+  res.sort((a, b) => a.cost - b.cost);
+  const setKey = q => SCALES[q.scale].map(d => (q.root + d) % 12).sort((x, y) => x - y).join();
+  const best = res[0], alt = res.find(q => setKey(q) !== setKey(best));
+  return { root: best.root, scale: best.scale, cost: best.cost, rel: best.rel, margin: alt ? alt.cost - best.cost : 1 };
+}
+/* soft snap: keep a note that was sung clearly on a semitone even if it is outside the scale (blue notes, accidentals); only pull in the uncertain ones */
+function softSnap(raw, root, scaleName, keepWithin) {
+  const sc = SCALES[scaleName]; if (!sc) return Math.round(raw);
+  const n0 = Math.round(raw), pc = (((n0 - root) % 12) + 12) % 12;
+  if (sc.indexOf(pc) !== -1) return n0;
+  if (Math.abs(raw - n0) < (keepWithin == null ? 0.2 : keepWithin)) return n0;
+  return snapToScale(raw, root, scaleName);
+}
 function snapToScale(midi, root, scaleName) {
   const sc = SCALES[scaleName];
   if (!sc) return Math.round(midi);
@@ -787,6 +866,15 @@ function refineNotes(segs, data, sr) {
     if (n.dur < 0.16 && p && q && Math.abs(n.rawMidi - p.rawMidi) >= 6 && Math.abs(n.rawMidi - q.rawMidi) >= 6) return false;
     return true;
   });
+  // 3b) glide artefacts: a very short note glued to its neighbours with no energy dip is just the voice sliding between two notes
+  out = out.filter((n, i) => {
+    const p = out[i - 1], q = out[i + 1];
+    if (n.dur >= 0.085 || !(p || q)) return true;
+    const pk = peakIn(n.start, n.start + n.dur);
+    const dipL = p ? minIn(p.start + p.dur - 0.01, n.start + 0.015) < Math.min(peakIn(p.start, p.start + p.dur), pk) * 0.55 : true;
+    const dipR = q ? minIn(n.start + n.dur - 0.015, q.start + 0.01) < Math.min(peakIn(q.start, q.start + q.dur), pk) * 0.55 : true;
+    return dipL || dipR;
+  });
   // 4) heal splits: same pitch separated by a hole where the energy never really dipped
   const merged = [];
   for (const n of out) {
@@ -803,7 +891,10 @@ function refineNotes(segs, data, sr) {
   for (let i = 0; i < merged.length; i++) {
     const n = merged[i], p = final[final.length - 1], q = merged[i + 1];
     if (p && q && n.dur < 0.1 && Math.round(p.rawMidi) === Math.round(q.rawMidi) && Math.abs(n.rawMidi - p.rawMidi) <= 2.5) {
-      p.dur = q.start + q.dur - p.start; i++; continue;
+      // a real wobble has no energy dip around it; fast repeated syllables ("dum dum dum") DO dip between every note, so keep those
+      const dipA = minIn(p.start + p.dur - 0.015, n.start + 0.015) < Math.min(peakIn(p.start, p.start + p.dur), peakIn(n.start, n.start + n.dur)) * 0.5;
+      const dipB = minIn(n.start + n.dur - 0.015, q.start + 0.015) < Math.min(peakIn(n.start, n.start + n.dur), peakIn(q.start, q.start + q.dur)) * 0.5;
+      if (!dipA && !dipB) { p.dur = q.start + q.dur - p.start; i++; continue; }
     }
     final.push(n);
   }
@@ -834,8 +925,8 @@ function transcribe(data, sampleRate, opts) {
   opts = opts || {};
   const tracked = trackPitch(data, sampleRate, opts);
   const tuning = opts.autoTune === false ? 0 : estimateTuningOffset(tracked.frames);
-  let segs = segmentNotes(tracked.frames, tracked.hopSec, tuning).filter(n => n.dur >= (opts.minNote || 0.07));
-  if (opts.refine !== false) segs = refineNotes(segs, data, sampleRate).filter(n => n.dur >= (opts.minNote || 0.07));
+  let segs = segmentNotes(tracked.frames, tracked.hopSec, tuning).filter(n => n.dur >= (opts.minNote || 0.05));
+  if (opts.refine !== false) segs = refineNotes(segs, data, sampleRate).filter(n => n.dur >= (opts.minNote || 0.05));
   let tempoEst = null;
   if (opts.autoTempo && segs.length >= 4) {
     tempoEst = estimateTempo(segs.map(n => n.start));
@@ -844,16 +935,23 @@ function transcribe(data, sampleRate, opts) {
   let leadSec = 0;
   if (opts.trimLead && segs.length) { const t0 = segs[0].start; leadSec = t0; segs.forEach(n => { n.start -= t0; }); }
   if (opts.latency) segs.forEach(n => { n.start = Math.max(0, n.start - opts.latency); });
+  if (opts.drift !== false && segs.length >= 2) segs = trackTuningDrift(segs);
   let key = segs.length ? detectKey(segs) : null;
-  let root = null;
+  let root = null, scaleInfo = null, autoSnap = false;
   let scaleName = opts.scale;
-  if (scaleName === 'auto') {            // follow the detected key's own major/minor scale when confident
-    if (key && segs.length >= 4 && key.score > 0.55 && typeof opts.keyRoot !== 'number') { scaleName = key.mode; }
-    else if (typeof opts.keyRoot === 'number') { scaleName = (key && key.mode === 'minor') ? 'minor' : 'major'; }
-    else scaleName = 'off';
+  if (scaleName === 'auto') {            // find the key AND scale type the singer is really using; only snap when the fit is convincing
+    scaleName = 'off';
+    if (segs.length >= 5) {
+      const si = detectScale(segs, typeof opts.keyRoot === 'number' ? opts.keyRoot : undefined);
+      if (si.rel < SCALE_ACCEPT) {
+        scaleInfo = si; scaleName = si.scale; root = si.root; autoSnap = true;
+        const minorish = si.scale === 'minor' || si.scale === 'minorPent' || si.scale === 'blues';
+        key = { root: si.root, mode: minorish ? 'minor' : 'major', score: key ? key.score : 0, name: NOTE_NAMES[si.root] + ' ' + ({ major: 'major', minor: 'minor', majorPent: 'major pentatonic', minorPent: 'minor pentatonic', blues: 'blues' })[si.scale] };
+      }
+    }
   }
   opts = Object.assign({}, opts, { scale: scaleName });
-  if (opts.scale && opts.scale !== 'off') {
+  if (!autoSnap && opts.scale && opts.scale !== 'off') {
     if (typeof opts.keyRoot === 'number') root = opts.keyRoot;
     else if (key) {
       root = key.root;
@@ -864,12 +962,18 @@ function transcribe(data, sampleRate, opts) {
     }
   }
   let notes = segs.map(n => ({
-    midi: root !== null ? snapToScale(n.rawMidi, root, opts.scale) : Math.round(n.rawMidi),
+    midi: root !== null ? (autoSnap ? softSnap(n.rawMidi, root, opts.scale, 0.2) : snapToScale(n.rawMidi, root, opts.scale)) : Math.round(n.rawMidi),
     rawMidi: n.rawMidi, start: n.start, dur: Math.max(0.1, n.dur), vel: n.vel
   }));
   // merge consecutive identical pitches that touch (tiny gaps) only when no articulation dip split them
-  if (opts.bpm && opts.grid) notes = quantizeNotes(notes, opts.bpm, opts.grid);
-  return { notes, key, tuningCents: Math.round(tuning * 100), gate: tracked.gate, tempo: tempoEst, bpm: opts.bpm || null, leadSec };
+  // only snap rhythm to the grid if the singer actually followed it; otherwise snapping would bend their rhythm
+  let quantSkipped = false, suggestBpm = null;
+  if (opts.bpm && opts.grid && notes.length >= 4 && opts.smartQuantize !== false) {
+    const stepSec = (60 / opts.bpm) / 2, devs = notes.map(n => { const u = n.start / stepSec; return Math.abs(u - Math.round(u)); }).sort((x, y) => x - y);
+    if (devs[devs.length >> 1] > 0.15) { quantSkipped = true; const te = estimateTempo(notes.map(n => n.start)); if (te && te.bpm) suggestBpm = te.bpm; }
+  }
+  if (opts.bpm && opts.grid && !quantSkipped) notes = quantizeNotes(notes, opts.bpm, opts.grid);
+  return { quantSkipped, suggestBpm, notes, key, scaleInfo, tuningCents: Math.round(tuning * 100), gate: tracked.gate, tempo: tempoEst, bpm: opts.bpm || null, leadSec };
 }
 
 /* ---------- beatbox: detect drum hits & classify (kick / snare / hat / open hat) ---------- */
