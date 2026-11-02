@@ -1,13 +1,13 @@
 {
-  "name": "Melodize — Voice to Instrument Studio",
+  "name": "Melodize — Voice to Song Studio",
   "short_name": "Melodize",
   "description": "Hum, sing or beatbox and turn your voice into instruments, EDM synths and drums. Layer, mix, master and export full songs.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0c0d14",
-  "theme_color": "#0c0d14",
+  "background_color": "#0a0e16",
+  "theme_color": "#0a0e16",
   "icons": [
     {
       "src": "icon-72.png",
