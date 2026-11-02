@@ -6,7 +6,7 @@
 <title>Melodize — Voice to full song studio</title>
 <meta name="description" content="Hum, sing or beatbox and turn your voice into piano, guitar, strings, synths, EDM leads and drums. Layer tracks, mix, master and export a full song. Installable on Windows, Android and iPhone.">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0c0d14">
+<meta name="theme-color" content="#0a0e16">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -17,22 +17,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0c0d14; --bg2:#13141f; --panel:#181a26; --panel2:#1f2233;
-    --line:rgba(255,255,255,.08); --text:#eef0ff; --sub:#9195b5;
-    --accent:#8b5cf6; --accent2:#ec4899; --accent3:#22d3ee;
+    --bg:#0a0e16; --bg2:#0f1521; --panel:#131a28; --panel2:#1a2335;
+    --line:rgba(255,255,255,.08); --text:#e8eef9; --sub:#8a97b2;
+    --accent:#2dd4bf; --accent2:#38bdf8; --accent3:#22d3ee;
     --good:#34d399; --warn:#fbbf24; --bad:#f87171;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   body{font-family:'Inter',sans-serif;background:
-      radial-gradient(1200px 600px at 15% -10%, rgba(139,92,246,.18), transparent 60%),
-      radial-gradient(1000px 500px at 100% 0%, rgba(236,72,153,.14), transparent 55%),
+      radial-gradient(1200px 600px at 15% -10%, rgba(45,212,191,.18), transparent 60%),
+      radial-gradient(1000px 500px at 100% 0%, rgba(56,189,248,.14), transparent 55%),
       var(--bg);color:var(--text);min-height:100vh}
   h1,h2,h3,.logo{font-family:'Space Grotesk',sans-serif}
   .wrap{max-width:1020px;margin:0 auto;padding:28px 20px 80px}
 
   header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:14px}
   .logo{display:flex;align-items:center;gap:10px;font-size:1.5rem;font-weight:700}
-  .logo .dot{width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 16px rgba(139,92,246,.7)}
+  .logo .dot{width:11px;height:11px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 16px rgba(45,212,191,.7)}
   .logo .sub{font-size:.78rem;color:var(--sub);font-weight:400;margin-left:4px}
   .status-pill{font-size:.72rem;padding:5px 11px;border-radius:30px;border:1px solid var(--line);color:var(--sub);background:rgba(255,255,255,.03)}
   .status-pill.ready{color:var(--good);border-color:rgba(52,211,153,.35)}
@@ -45,10 +45,10 @@
 
   .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;border:1px solid var(--line);
     background:var(--panel2);color:var(--text);font-family:inherit;font-size:.9rem;font-weight:600;cursor:pointer;transition:.15s}
-  .btn:hover{border-color:rgba(139,92,246,.5);transform:translateY(-1px)}
+  .btn:hover{border-color:rgba(45,212,191,.5);transform:translateY(-1px)}
   .btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
   .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:none}
-  .btn.primary:hover{box-shadow:0 8px 20px rgba(139,92,246,.4)}
+  .btn.primary:hover{box-shadow:0 8px 20px rgba(45,212,191,.4)}
   .btn.danger{border-color:rgba(248,113,113,.4);color:#ffb4b4}
   .btn.ghost{background:transparent}
   .btn.small{padding:7px 13px;font-size:.78rem;border-radius:9px}
@@ -71,19 +71,19 @@
   /* mode tabs */
   .tabs{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
   .tab{padding:9px 16px;border-radius:30px;border:1px solid var(--line);background:transparent;color:var(--sub);font-family:inherit;font-weight:600;font-size:.82rem;cursor:pointer}
-  .tab.active{background:rgba(139,92,246,.16);border-color:var(--accent);color:var(--text)}
+  .tab.active{background:rgba(45,212,191,.16);border-color:var(--accent);color:var(--text)}
 
   .inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:9px;margin-bottom:16px}
   .inst-card{background:var(--panel2);border:1.5px solid var(--line);border-radius:13px;padding:12px 6px;text-align:center;cursor:pointer;transition:.15s;user-select:none}
   .inst-card .emoji{font-size:1.5rem;display:block;margin-bottom:4px}
   .inst-card .name{font-size:.74rem;font-weight:600}
-  .inst-card:hover{border-color:rgba(139,92,246,.4)}
-  .inst-card.active{border-color:var(--accent);background:rgba(139,92,246,.14);box-shadow:0 0 0 1px rgba(139,92,246,.4) inset}
+  .inst-card:hover{border-color:rgba(45,212,191,.4)}
+  .inst-card.active{border-color:var(--accent);background:rgba(45,212,191,.14);box-shadow:0 0 0 1px rgba(45,212,191,.4) inset}
   .inst-card.synth.active{border-color:var(--accent3);background:rgba(34,211,238,.1);box-shadow:0 0 0 1px rgba(34,211,238,.4) inset}
 
   .preset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin:10px 0 4px}
   .preset{background:var(--panel2);border:1.5px solid var(--line);border-radius:13px;padding:12px;cursor:pointer;text-align:left;color:var(--text);font-family:inherit}
-  .preset:hover{border-color:rgba(236,72,153,.5)}
+  .preset:hover{border-color:rgba(56,189,248,.5)}
   .preset b{display:block;font-size:.82rem;margin-bottom:3px}
   .preset span{font-size:.72rem;color:var(--sub)}
 
@@ -117,7 +117,7 @@
   .mini{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--sub)}
   .mini input[type=range]{width:74px}
 
-  .toggle.on.fills{background:rgba(236,72,153,.16);border-color:rgba(236,72,153,.5);color:#ff9ccf}
+  .toggle.on.fills{background:rgba(56,189,248,.16);border-color:rgba(56,189,248,.5);color:#ff9ccf}
   select.kitpick{max-width:150px;font-size:.74rem;padding:5px 7px}
   .drumgrid{margin-top:10px;overflow-x:auto;padding-bottom:4px}
   .dg-row{display:flex;align-items:center;gap:6px;margin-bottom:3px}
@@ -126,13 +126,14 @@
   .cell{width:22px;height:22px;border-radius:5px;border:1px solid var(--line);background:rgba(255,255,255,.035);cursor:pointer;padding:0}
   .cell.beat{background:rgba(255,255,255,.08)}
   .cell.bar{margin-left:6px}
-  .cell.on{background:var(--c,#ec4899);border-color:transparent;box-shadow:0 0 8px var(--c,#ec4899)}
+  .cell.on{background:var(--c,#38bdf8);border-color:transparent;box-shadow:0 0 8px var(--c,#38bdf8)}
 
   .adv-q{font-size:.8rem;color:var(--text);font-weight:600;margin-top:6px}
   .chips{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 14px}
+  .transport select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:.78rem}
   .chip{padding:7px 13px;border-radius:30px;border:1px solid var(--line);background:transparent;color:var(--sub);font-family:inherit;font-size:.78rem;font-weight:600;cursor:pointer}
-  .chip:hover{border-color:rgba(139,92,246,.5)}
-  .chip.active{background:rgba(139,92,246,.18);border-color:var(--accent);color:var(--text)}
+  .chip:hover{border-color:rgba(45,212,191,.5)}
+  .chip.active{background:rgba(45,212,191,.18);border-color:var(--accent);color:var(--text)}
   .adv-card{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:13px;border-radius:14px;background:var(--panel2);border:1px solid var(--line);margin-bottom:9px}
   .adv-card.best{border-color:rgba(52,211,153,.5);box-shadow:0 0 0 1px rgba(52,211,153,.25) inset}
   .adv-card .ai{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;background:rgba(255,255,255,.05)}
@@ -143,7 +144,7 @@
   .pctbar > div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
   .adv-btns{display:flex;flex-direction:column;gap:6px}
   /* chat page */
-  .chatpage{position:fixed;inset:0;z-index:40;background:radial-gradient(900px 500px at 10% -10%, rgba(139,92,246,.2), transparent 60%),var(--bg);display:flex;flex-direction:column;height:100dvh}
+  .chatpage{position:fixed;inset:0;z-index:40;background:radial-gradient(900px 500px at 10% -10%, rgba(45,212,191,.2), transparent 60%),var(--bg);display:flex;flex-direction:column;height:100dvh}
   .chat-inner{width:100%;max-width:820px;margin:0 auto;display:flex;flex-direction:column;flex:1;min-height:0;padding:0 14px}
   .chat-head{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
   .chat-title{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.05rem;flex:1}
@@ -155,6 +156,14 @@
   .msg.user{align-self:flex-end;background:linear-gradient(135deg,var(--accent),var(--accent2));border-bottom-right-radius:4px}
   .msg audio{display:block;margin-top:8px;width:min(280px,100%);height:34px}
   .msg canvas.mini{display:block;margin-top:8px;width:min(280px,100%);height:30px;border-radius:6px;background:rgba(0,0,0,.25)}
+  .livebar{display:none;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0 0;padding:8px 12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);font-size:.78rem;color:var(--sub)}
+  .livebar b{color:var(--text);min-width:150px}
+  .livebar .lv-dot{width:10px;height:10px;border-radius:50%;background:#555;flex:none}
+  .livebar.talk .lv-dot{background:var(--accent3);box-shadow:0 0 10px var(--accent3)}
+  .livebar.sing .lv-dot{background:var(--accent2);box-shadow:0 0 12px var(--accent2)}
+  .livebar canvas{width:110px;height:14px;border-radius:5px;background:rgba(0,0,0,.3)}
+  .livebar label{display:flex;align-items:center;gap:6px;margin-left:auto}
+  .livebar input[type=range]{width:90px}
   .msg canvas.chatmeter{display:block;margin-top:8px;width:min(240px,100%);height:24px;border-radius:6px;background:rgba(0,0,0,.25)}
   .msg .adv-card{margin:10px 0 0;background:rgba(0,0,0,.18)}
   .chat-chips{display:flex;gap:7px;flex-wrap:wrap;padding:6px 0}
@@ -187,6 +196,29 @@
   .gate h1{font-size:1.6rem;margin-bottom:10px}
   .gate p{color:var(--sub);font-size:.92rem;margin-bottom:22px;line-height:1.6}
   .tip{background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);border-radius:10px;padding:10px 12px;font-size:.78rem;color:#b8f3ff;margin-bottom:14px;line-height:1.5}
+
+  /* ---- Nova studio polish ---- */
+  body{font-family:'Inter',system-ui,sans-serif;letter-spacing:.005em;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px}
+  .panel{border-radius:16px;border:1px solid rgba(255,255,255,.06);box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 18px 40px rgba(0,0,0,.28)}
+  .panel h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.14em;color:#9fb0cf;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .panel h2:before{content:"";width:6px;height:6px;border-radius:2px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px rgba(45,212,191,.6)}
+  .btn{border-radius:11px;font-weight:600;letter-spacing:.01em}
+  .btn.primary{color:#04121a;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 6px 18px rgba(45,212,191,.22)}
+  .btn.primary:hover{box-shadow:0 10px 26px rgba(45,212,191,.38)}
+  .btn:focus-visible,.tab:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .tab{border-radius:10px;padding:9px 15px}
+  .tab.active{background:linear-gradient(180deg,rgba(45,212,191,.18),rgba(56,189,248,.08));box-shadow:0 0 0 1px rgba(45,212,191,.55) inset}
+  .logo{gap:12px;letter-spacing:.01em}
+  .logo svg{width:34px;height:34px;flex:none;filter:drop-shadow(0 0 10px rgba(45,212,191,.45))}
+  .logo .sub{display:block;margin:0;font-size:.7rem;letter-spacing:.12em;text-transform:uppercase}
+  .logo .nm{display:flex;flex-direction:column;line-height:1.1}
+  .track{border-radius:14px;transition:border-color .2s,box-shadow .2s}
+  .track:hover{border-color:rgba(45,212,191,.3)}
+  .btn.nova{background:linear-gradient(135deg,rgba(45,212,191,.16),rgba(56,189,248,.16));border-color:rgba(45,212,191,.45)}
+  .nova-orb{display:inline-block;width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,var(--accent) 40%,var(--accent2));box-shadow:0 0 12px var(--accent)}
+  ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#243049;border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+  @media (max-width:640px){.wrap{padding:18px 12px 70px}.panel{padding:16px;border-radius:14px}.btn{padding:10px 14px}}
 </style>
 </head>
 <body>
@@ -203,7 +235,7 @@
   <div class="chat-inner">
     <div class="chat-head">
       <button class="btn small ghost" id="chatBack">← Back to studio</button>
-      <div class="chat-title">🤖 Melodize Advisor<small id="chatSub">Talk, type, or sing — I'll help you pick instruments and build beats.</small></div>
+      <div class="chat-title"><span class="nova-orb"></span> Nova<small id="chatSub">Talk, type, or sing — I'll help you pick instruments and build beats.</small></div>
       <label class="chk"><input type="checkbox" id="chatSpeak"> 🔊 Speak replies</label>
       <button class="btn small" id="chatVoice" title="Hands-free conversation: talk, sing, talk again">🗣 Voice chat</button>
       <button class="btn small" id="chatCfg" title="Connect a real AI (optional)">⚙ AI: built-in</button>
@@ -215,6 +247,7 @@
         <button class="btn small primary" id="aiSave">Save &amp; test</button>
       </div>
     </div>
+    <div class="livebar" id="liveBar"><span class="lv-dot" id="lvDot"></span><b id="lvState">Listening…</b><canvas id="lvMeter" width="110" height="14"></canvas><label title="Higher = more things count as singing. Lower = stricter.">Singing sensitivity <input type="range" id="lvSens" min="70" max="140" value="100"></label></div>
     <div class="chat-msgs" id="chatMsgs"></div>
     <div class="chat-chips" id="chatChips"></div>
     <div class="chat-input">
@@ -255,9 +288,9 @@
 
 <div class="wrap">
   <header>
-    <div class="logo"><span class="dot"></span>Melodize <span class="sub">voice → full song studio</span></div>
+    <div class="logo"><svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2dd4bf"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs><rect x="2" y="2" width="44" height="44" rx="12" fill="#0f1521" stroke="url(#lg)" stroke-width="2"/><g fill="url(#lg)"><rect x="10" y="20" width="4" height="8" rx="2"/><rect x="17" y="13" width="4" height="22" rx="2"/><rect x="24" y="17" width="4" height="14" rx="2"/><rect x="31" y="10" width="4" height="28" rx="2"/><rect x="38" y="21" width="3" height="6" rx="1.5"/></g></svg><span class="nm">Melodize <span class="sub">voice → full song studio</span></span></div>
     <div style="display:flex;align-items:center;gap:10px">
-      <button class="btn small" id="openChat">💬 Advisor chat</button>
+      <button class="btn small nova" id="openChat"><span class="nova-orb"></span> Talk to Nova</button>
       <button class="btn small" id="installBtn" style="display:none">⬇ Install app</button>
       <span class="status-pill" id="statusPill">starting…</span>
     </div>
@@ -316,7 +349,7 @@
       <button class="tab" data-mode="beatbox">🥁 Beatbox → drums</button>
       <button class="tab" data-mode="drums">🎛 Drum machine</button>
       <button class="tab" data-mode="vocal">🎙 Real voice</button>
-      <button class="tab" data-mode="advisor">🤖 Ask the advisor</button>
+      <button class="tab" data-mode="advisor">✦ Ask Nova</button>
     </div>
 
     <div id="melodySection">
@@ -373,6 +406,27 @@
       <button class="btn ghost" id="autoMixBtn" title="Balance levels, pan and reverb automatically">✨ Auto-mix</button>
       <button class="btn ghost" id="midiBtn" title="Open your song in FL Studio, Ableton, Logic, GarageBand…">⬇ MIDI (.mid)</button>
       <button class="btn ghost" id="exportBtn">⬇ Export song (.wav)</button>
+    </div>
+    <div class="transport" style="margin-bottom:6px">
+      <span class="mini">Studio tools</span>
+      <button class="btn small ghost" id="stUndo" title="Undo last studio edit (Ctrl+Z)">↶ Undo</button>
+      <button class="btn small ghost" id="stRedo" title="Redo (Ctrl+Shift+Z)">↷ Redo</button>
+      <button class="btn small ghost" id="stTrUp" title="Transpose every melody up a semitone">Key +1</button>
+      <button class="btn small ghost" id="stTrDn" title="Transpose every melody down a semitone">Key −1</button>
+      <button class="btn small ghost" id="stHuman" title="Slightly loosen timing and velocity so it feels played, not programmed">Humanize</button>
+      <button class="btn small ghost" id="stTight" title="Snap all melody notes to the Quantize grid">Tighten</button>
+      <button class="btn small ghost" id="stDouble" title="Double all melody notes' length (half-time feel)">½ time</button>
+      <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song">💡 Coach</button>
+      <span class="mini" id="stInfo"></span>
+      <div class="hint" id="coachOut" style="display:none;width:100%"></div>
+    </div>
+    <div class="transport" style="margin-top:10px">
+      <label class="chk">Master sound <select id="masterPreset"><option value="balanced">Balanced</option><option value="warm">Warm &amp; smooth</option><option value="bright">Bright &amp; airy</option><option value="punchy">Punchy</option><option value="wide">Wide &amp; cinematic</option></select></label>
+      <label class="chk">Space <select id="roomSel"><option value="room">Small room</option><option value="plate">Studio plate</option><option value="hall" selected>Concert hall</option><option value="cathedral">Cathedral</option></select></label>
+      <label class="chk">Loudness <select id="expTarget"><option value="-14">Streaming (−14 LUFS)</option><option value="-9">Loud (−9 LUFS)</option><option value="-18">Quiet (−18 LUFS)</option><option value="0">Leave as is</option></select></label>
+      <label class="chk">Format <select id="expBits"><option value="16">WAV 16-bit</option><option value="24">WAV 24-bit</option></select></label>
+      <button class="btn ghost" id="stemsBtn" title="Every track as its own WAV (before master processing) + the finished mix, in one ZIP — drop it into any DAW">⬇ Stems (.zip)</button>
+      <span class="hint" id="mixInfo" style="margin:0"></span>
     </div>
     <div class="prog"><div id="progFill"></div></div>
   </section>
@@ -523,7 +577,7 @@ function createInstrument(key) {
 ===================================================================== */
 const VOICES = ['kick','snare','clap','hat','openhat','tom','perc','ride','crash'];
 const VOICE_LABEL = { kick:'Kick', snare:'Snare', clap:'Clap', hat:'Hat', openhat:'Open', tom:'Tom', perc:'Perc', ride:'Ride', crash:'Crash' };
-const VOICE_COLOR = { kick:'#ec4899', snare:'#8b5cf6', clap:'#a78bfa', hat:'#22d3ee', openhat:'#34d399', tom:'#fbbf24', perc:'#f472b6', ride:'#60a5fa', crash:'#fb923c' };
+const VOICE_COLOR = { kick:'#38bdf8', snare:'#2dd4bf', clap:'#a78bfa', hat:'#22d3ee', openhat:'#34d399', tom:'#fbbf24', perc:'#f472b6', ride:'#60a5fa', crash:'#fb923c' };
 const OR = "https://oramics.github.io/sampled/";
 const KITS = {
   // synthesized (instant, no download)
@@ -664,9 +718,9 @@ const PRESETS = [
    3. PROJECT STATE + AUDIO ENGINE
 ===================================================================== */
 const S = { bpm:120, bars:8, keyRoot:'auto', scale:'auto', grid:4, mode:'melody', instrument:'piano', kit:'club', swing:0, humanize:true };
-let masterGain, compressor, limiter, eq, recorder, reverbBus, delayBus;
+let masterGain, compressor, limiter, eq, recorder, reverbBus, reverbIn, widener, delayBus;
 let tracks = [], trackIdCounter = 0;
-const trackColors = ['#8b5cf6','#ec4899','#22d3ee','#34d399','#fbbf24','#f472b6','#60a5fa','#fb923c'];
+const trackColors = ['#2dd4bf','#38bdf8','#22d3ee','#34d399','#fbbf24','#f472b6','#60a5fa','#fb923c'];
 const spb = () => 60 / S.bpm;
 const songLen = () => S.bars * 4 * spb();
 
@@ -675,11 +729,14 @@ function buildMasterChain() {
   eq = new Tone.EQ3({ low: 0, mid: 0, high: 0 });
   compressor = new Tone.Compressor({ threshold: -20, ratio: 3, attack: 0.02, release: 0.25 });   // gentle bus 'glue'
   limiter = new Tone.Limiter(-1);
-  masterGain.chain(eq, compressor, limiter, Tone.Destination);
+  widener = new Tone.StereoWidener(0.5);
+  masterGain.chain(eq, compressor, widener, limiter, Tone.Destination);
   recorder = new Tone.Recorder();
   limiter.connect(recorder);
   reverbBus = new Tone.Reverb({ decay: 3.2, preDelay: 0.02 });
   reverbBus.wet.value = 1; reverbBus.connect(masterGain);
+  reverbIn = new Tone.Gain(1);                                   // every track's reverb send lands here: no boomy lows, no hissy highs in the tail
+  reverbIn.chain(new Tone.Filter(260, 'highpass'), new Tone.Filter(7200, 'lowpass'), reverbBus);
   try { const p = reverbBus.generate(); if (p && p.catch) p.catch(()=>{}); } catch(e){}
   delayBus = new Tone.FeedbackDelay({ delayTime: spb() * 0.75, feedback: 0.38 });
   delayBus.wet.value = 1; delayBus.connect(masterGain);
@@ -691,7 +748,7 @@ function makeTrackChain() {
   const hp = new Tone.Filter(100, 'highpass');       // keeps low-end mud out of everything except bass/kick
   duck.connect(hp); hp.connect(vol); vol.connect(pan);
   pan.connect(masterGain); pan.connect(rev); pan.connect(dly);
-  rev.connect(reverbBus); dly.connect(delayBus);
+  rev.connect(reverbIn); dly.connect(delayBus);
   return { duck, hp, vol, pan, rev, dly };
 }
 
@@ -917,7 +974,7 @@ function drawMeter(level) {
   const ctx = meterCanvas.getContext('2d'), w = meterCanvas.width, h = meterCanvas.height;
   ctx.fillStyle = '#0a0b12'; ctx.fillRect(0,0,w,h);
   const grad = ctx.createLinearGradient(0,0,w,0);
-  grad.addColorStop(0, '#8b5cf6'); grad.addColorStop(1, '#ec4899');
+  grad.addColorStop(0, '#2dd4bf'); grad.addColorStop(1, '#38bdf8');
   ctx.fillStyle = grad; ctx.fillRect(0, h*0.25, Math.min(w * level * 3, w), h*0.5);
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -1774,7 +1831,7 @@ async function respond(text) {
   if (r.yes && !want && !r.question && text.split(/\s+/).length <= 3) { say(pick(['Glad you like it! ', 'Nice. ']) + 'What shall we do next?', { chips: suggestNext() }); return; }
   if (r.no && !want) { say(pick(["Okay — I'm here when you need me.", 'No worries. Tell me whatever comes to mind.']), { chips: suggestNext() }); return; }
   if (r.bye) { say("Bye for now! Your tracks stay in the studio — come back anytime. 🎶"); return; }
-  if (r.who) { say("I'm the Melodize advisor — a helper built into this studio. I listen to your tune, suggest instruments, make beats and build songs. Tell me what you're in the mood for!", { chips: suggestNext() }); return; }
+  if (r.who) { say("I'm Nova, the AI built into Melodize — a helper built into this studio. I listen to your tune, suggest instruments, make beats and build songs. Tell me what you're in the mood for!", { chips: suggestNext() }); return; }
   if (r.how && !want) { say(pick(["Doing great and ready to make music! What are we creating?", "Feeling musical! Want to sing me something?"]), { chips: suggestNext() }); return; }
   if (r.sorry && !want) { say(pick(["No need to apologise — nothing's broken. What next?", 'All good! Want to try again?']), { chips: suggestNext() }); return; }
   if (r.bored || r.whatNext) { say(pick(["Here's an idea — ", "Let's get you going: "]) + (tracks.length ? 'we have ' + tracks.length + ' track' + (tracks.length > 1 ? 's' : '') + ' so far, so ' : '') + 'pick one of these.', { chips: suggestNext() }); return; }
@@ -2023,6 +2080,7 @@ refreshAiBtn();
 
 /* ----- singing / beatboxing inside the chat ----- */
 async function chatSing(kind) {
+  if (live.on) { liveArm(kind); return; }
   if (chat.recording) { finishChatRecording(); return; }
   if (recCap) { say('The studio recorder is running — stop it first.'); return; }
   if (chat.singing) return;
@@ -2118,6 +2176,147 @@ async function processChatRecording(kind, data, sr, bubble) {
   }
 }
 
+
+/* =====================================================================
+   LIVE EAR — one open microphone that tells TALKING from SINGING.
+   Your words go to the chat (speech recognition); only the sung part of what you
+   sing/hum is cut out and turned into the instrument you asked for.
+   ===================================================================== */
+const live = { on: false, stream: null, cap: null, sr: 44100, ring: [], ringLen: 0, utt: null, quiet: 0, floor: 0.004, state: 'idle', singUntil: 0, lastSungEnd: 0, armed: null, sens: 1, lastClassify: 0, busy: Promise.resolve(), level: 0, mtr: null };
+try { const sv = parseFloat(localStorage.getItem('melodize_live_sens')); if (sv >= 0.7 && sv <= 1.4) live.sens = sv; } catch (e) {}
+async function openPcmStream(stream, onBlock) {
+  const ctx = getCapCtx();
+  try { if (ctx.state === 'suspended') await ctx.resume(); } catch (e) {}
+  const src = ctx.createMediaStreamSource(stream);
+  const sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
+  let node = null, acc = [], accN = 0;
+  const push = c => { acc.push(c); accN += c.length; if (accN >= 2048) { const out = new Float32Array(accN); let o = 0; acc.forEach(x => { out.set(x, o); o += x.length; }); acc = []; accN = 0; onBlock(out); } };
+  try {
+    if (ctx.audioWorklet && window.AudioWorkletNode) {
+      if (!ctx.__melodizeRec) {
+        const code = "class R extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true;}}registerProcessor('melodize-rec',R);";
+        const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+        await ctx.audioWorklet.addModule(url); ctx.__melodizeRec = true;
+      }
+      node = new AudioWorkletNode(ctx, 'melodize-rec', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
+      node.port.onmessage = e => push(e.data);
+    }
+  } catch (e) { node = null; }
+  if (!node) { node = ctx.createScriptProcessor(4096, 1, 1); node.onaudioprocess = e => push(new Float32Array(e.inputBuffer.getChannelData(0))); }
+  src.connect(node); node.connect(sink);
+  return { sr: ctx.sampleRate, stop() { try { src.disconnect(node); } catch (e) {} try { node.disconnect(); } catch (e) {} try { sink.disconnect(); } catch (e) {} if (node.port) node.port.onmessage = null; node.onaudioprocess = null; } };
+}
+function liveUI(state, extra) {
+  live.state = state;
+  const bar = $('#liveBar'); if (!bar) return;
+  bar.style.display = live.on ? 'flex' : 'none';
+  bar.classList.toggle('talk', state === 'talk'); bar.classList.toggle('sing', state === 'sing');
+  $('#lvState').textContent = extra || (state === 'sing' ? '🎵 Singing — I\'m catching it' : state === 'talk' ? '🗣 Talking' : live.armed ? '🎤 Go ahead and sing…' : '👂 Listening…');
+}
+function liveMeter() {
+  const cv = $('#lvMeter'); if (!cv) return; const c = cv.getContext('2d'); c.clearRect(0, 0, 110, 14);
+  c.fillStyle = live.state === 'sing' ? '#38bdf8' : '#22d3ee'; c.fillRect(0, 3, Math.min(110, live.level * 700), 8);
+}
+const concatF32 = parts => { let n = 0; parts.forEach(c => { n += c.length; }); const o = new Float32Array(n); let k = 0; parts.forEach(c => { o.set(c, k); k += c.length; }); return o; };
+async function startLive() {
+  if (live.on) return true;
+  getCapCtx(); try { await Tone.start(); } catch (e) {}
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } }); }
+  catch (e) { return false; }
+  try { live.cap = await openPcmStream(stream, liveBlock); } catch (e) { stream.getTracks().forEach(t => t.stop()); return false; }
+  live.stream = stream; live.sr = live.cap.sr; live.on = true; live.ring = []; live.ringLen = 0; live.utt = null; live.quiet = 0; live.armed = null;
+  liveUI('idle'); const sl = $('#lvSens'); if (sl) sl.value = Math.round(live.sens * 100);
+  return true;
+}
+function stopLive() {
+  if (!live.on) return;
+  live.on = false; try { live.cap && live.cap.stop(); } catch (e) {} try { live.stream && live.stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+  live.cap = null; live.stream = null; live.utt = null; live.armed = null; liveUI('idle'); $('#liveBar').style.display = 'none';
+}
+function liveArm(kind) {
+  live.armed = { kind: kind === 'beatbox' ? 'beatbox' : 'melody', at: performance.now() };
+  liveUI(live.state);
+  setChips([{ label: '■ Done', fn: liveFlush }]);
+}
+function liveFlush() { if (live.utt) liveEndUtterance(true); }
+function liveBlock(b) {
+  if (!live.on) return;
+  let sum = 0; for (let i = 0; i < b.length; i++) sum += b[i] * b[i];
+  const rms = Math.sqrt(sum / b.length), dt = b.length / live.sr, now = performance.now();
+  live.level = live.level * 0.6 + rms * 0.4; liveMeter();
+  if (chat.speaking || recCap || (Tone.Transport && Tone.Transport.state === 'started' && !live.armed)) { live.utt = null; live.quiet = 0; live.ring = []; live.ringLen = 0; if (live.state !== 'idle') liveUI('idle'); return; }   // never listen to my own voice / the song playing
+  if (live.armed && now - live.armed.at > 90000) { live.armed = null; liveUI(live.state); }
+  const voiced = rms > Math.max(0.008, live.floor * 3.2);
+  if (!voiced) live.floor = live.floor * 0.98 + rms * 0.02;
+  // keep ~0.4 s of pre-roll so the first syllable is never cut
+  live.ring.push(b); live.ringLen += b.length; while (live.ringLen - live.ring[0].length > live.sr * 0.4) { live.ringLen -= live.ring[0].length; live.ring.shift(); }
+  if (!live.utt) {
+    if (voiced) { live.utt = { parts: live.ring.slice(), n: live.ringLen, voicedSec: dt, start: now }; live.quiet = 0; live.lastClassify = now; }
+    else if (live.state !== 'idle' && now > live.singUntil) liveUI('idle');
+    return;
+  }
+  const u = live.utt; u.parts.push(b); u.n += b.length;
+  if (voiced) { u.voicedSec += dt; live.quiet = 0; } else live.quiet += dt;
+  // real-time look at the last 1.6 s: talking or singing?
+  if (now - live.lastClassify > 380 && u.n > live.sr * 1.0) {
+    live.lastClassify = now;
+    const win = concatF32(u.parts.slice(-Math.ceil(live.sr * 1.7 / 2048)));
+    let sung = false;
+    try { const r = DSP.singingRegions(win, live.sr, { sensitivity: live.sens }); const wd = win.length / live.sr; sung = r.regions.some(x => x.end >= wd - 0.6); } catch (e) {}
+    if (sung) { live.singUntil = now + 1700; liveUI('sing'); } else if (now > live.singUntil) liveUI(voiced ? 'talk' : live.state);
+  } else if (live.state === 'idle' && voiced) liveUI('talk');
+  const dur = u.n / live.sr;
+  const pause = live.armed && live.armed.kind === 'beatbox' ? 2.4 : live.state === 'sing' ? 1.5 : 1.0;
+  if ((live.quiet >= pause && u.voicedSec > 0.25) || dur > 60) liveEndUtterance(false);
+  else if (live.quiet >= 4 && u.voicedSec <= 0.25) { live.utt = null; live.quiet = 0; }
+}
+function liveEndUtterance(forced) {
+  const u = live.utt; live.utt = null; live.quiet = 0; if (!u) return;
+  const audio = concatF32(u.parts), sr = live.sr, armed = live.armed;
+  liveUI('idle');
+  live.busy = live.busy.then(() => liveHandle(audio, sr, armed, forced)).catch(e => console.error(e));
+}
+function stripSung(text) {
+  const FILL = /^(la+|na+|da+|ta+|ba+|do+|re|mi|fa|sol|so+|doo+|dum|ooh?|ahh?|ah|oh|mm+|hmm+|hum+|humming|yeah|ya|uh|um|lol|lalala|nanana|dadada|lah|nah|oo+|ee+|woah|whoa|hey)$/i;
+  return String(text).split(/\s+/).filter(w => w && !FILL.test(w.replace(/[^a-z]/gi, ''))).join(' ').trim();
+}
+async function liveHandle(audio, sr, armed, forced) {
+  if (!live.on && !forced) return;
+  const dur = audio.length / sr;
+  if (armed && armed.kind === 'beatbox') {                       // beatbox is not pitched: the whole take is the beatbox
+    live.armed = null; setChips([]);
+    return liveSung(audio, sr, 'beatbox');
+  }
+  let sung = null;
+  try {
+    const res = DSP.singingRegions(audio, sr, { sensitivity: live.sens });
+    const keep = res.regions.filter(r => r.end - r.start >= 0.7);
+    if (keep.length) {
+      const pad = Math.round(sr * 0.12), gap = new Float32Array(Math.round(sr * 0.2)), parts = [];
+      keep.forEach((r, i) => { const a = Math.max(0, Math.round(r.start * sr) - pad), b = Math.min(audio.length, Math.round(r.end * sr) + pad); if (i) parts.push(gap); parts.push(audio.slice(a, b)); });
+      sung = concatF32(parts);
+    }
+  } catch (e) { console.error(e); }
+  if (!sung && armed && dur >= 0.8) sung = audio;                // you told me you'd sing, so trust you if I'm unsure
+  if (!sung) return;                                             // it was just talking: ignore the audio, the words go through speech recognition
+  live.armed = null; setChips([]);
+  live.lastSungEnd = performance.now();
+  await liveSung(sung, sr, 'melody');
+}
+async function liveSung(data, sr, kind) {
+  stopListen();
+  const bubble = document.createElement('div'); bubble.className = 'msg user';
+  const l = document.createElement('div'); l.className = 'txt'; l.textContent = (kind === 'beatbox' ? '🥁 Heard your beatbox… ' : '🎵 I heard you singing — ' + (data.length / sr).toFixed(1) + ' s of it. Working on it…'); bubble.appendChild(l);
+  chatMsgs.appendChild(bubble); scrollChat();
+  if (!chat.afterSing && !chat.pendingInstrument && chat.wish && (chat.wish.instrument || chat.wish.beat || chat.wish.style)) {
+    chat.afterSing = { instrument: chat.wish.instrument, beat: !!(chat.wish.beat || chat.wish.style), style: chat.wish.style }; chat.wish = {};
+  }
+  chat.singing = true;
+  await processChatRecording(kind, data, sr, bubble);
+}
+$('#lvSens').addEventListener('input', e => { live.sens = Math.max(0.7, Math.min(1.4, (+e.target.value) / 100)); try { localStorage.setItem('melodize_live_sens', String(live.sens)); } catch (x) {} });
+
 /* ----- talk (voice -> text) ----- */
 const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
 let speechRec = null, listening = false;
@@ -2138,7 +2337,8 @@ function startListen() {
   };
   speechRec.onend = () => {
     listening = false; $('#chatTalk').classList.remove('live');
-    const t = ($('#chatText').value || '').trim();
+    let t = ($('#chatText').value || '').trim();
+    if (t && live.on && (performance.now() < live.singUntil + 1500 || performance.now() - live.lastSungEnd < 3000)) { t = stripSung(t); if (t.length < 3) t = ''; $('#chatText').value = ''; }   // the recogniser heard your singing as words
     if (t) { $('#chatText').value = ''; handleText(t, true); }
     else if (chat.voiceOn) setTimeout(startListen, 400);      // keep the conversation open
   };
@@ -2161,6 +2361,7 @@ $('#chatTalk').addEventListener('click', () => {
 });
 function setVoice(on) {
   chat.voiceOn = !!on;
+  if (on) startLive().then(ok => { if (!ok && chat.voiceOn) say("I can't open the microphone for live listening here, so I'll hear your words but you'll need to tap 🎤 Sing before you sing.", { silent: true, chips: [] }); }); else stopLive();
   const b = $('#chatVoice'); b.textContent = on ? '🗣 Voice chat: ON' : '🗣 Voice chat'; b.classList.toggle('live', !!on);
   if (on) { chat.speak = true; $('#chatSpeak').checked = true; } else { stopListen(); try { window.speechSynthesis.cancel(); } catch (e) {} chat.speaking = false; }
 }
@@ -2168,7 +2369,7 @@ $('#chatVoice').addEventListener('click', () => {
   if (!SpeechRec) { say("Voice chat needs speech recognition, which this browser doesn't have — Chrome or Edge on desktop/Android, or Safari, usually work."); return; }
   if (chat.voiceOn) { setVoice(false); say('Voice chat is off. You can still type or tap 🎙.', { silent: true }); return; }
   setVoice(true);
-  say("Voice chat is on — just talk to me, like “I'll sing a guitar tune with a trap beat”. When you sing, only your singing is turned into music; I stop listening when you pause. Say “turn off voice chat” to stop.", { speech: "Voice chat is on. Just talk to me. When you want to sing, say, I'll sing, and I'll listen until you pause." });
+  say("Voice chat is on — just talk to me, like “I'll sing a guitar tune with a trap beat”. I'm always listening: when you start singing or humming I notice by myself and turn only the singing into music (your talking is ignored), then I wait for your command. Tell me the instrument before or after. Say “turn off voice chat” to stop.", { speech: "Voice chat is on. Just talk to me. When you want to sing, say, I'll sing, and I'll listen until you pause." });
 });
 
 /* ----- page wiring ----- */
@@ -2177,12 +2378,14 @@ function openChat() {
   if (!chat.started) {
     chat.started = true;
     const tsum = tasteSummary();
-    say("Hi! I'm your Melodize advisor. 🎶 Sing or hum a tune and I'll find the right instrument, build chords and a band around it, or answer you with a phrase of my own. You can also just describe a feeling — “rainy night in Tokyo” — and I'll compose it. You can type, tap 🎙 to talk, or tap 🎤 to sing." + (tsum ? "\nI remember you like " + tsum + "." : '') + " What would you like to do?", { chips: STARTER().concat([{ label: '🌧 Rainy night in Tokyo', say: 'make something that feels like a rainy night in tokyo' }]), speech: "Hi! I'm your Melodize advisor. Sing me a tune, or tell me what you'd like to make." });
+    say("Hi, I'm Nova. 🎶 Sing or hum a tune and I'll find the right instrument, build chords and a band around it, or answer you with a phrase of my own. You can also just describe a feeling — “rainy night in Tokyo” — and I'll compose it. You can type, tap 🎙 to talk, or tap 🎤 to sing." + (tsum ? "\nI remember you like " + tsum + "." : '') + " What would you like to do?", { chips: STARTER().concat([{ label: '🌧 Rainy night in Tokyo', say: 'make something that feels like a rainy night in tokyo' }]), speech: "Hi, I'm Nova. Sing me a tune, or tell me what you'd like to make." });
   }
+  if (chat.voiceOn && !live.on) startLive();
   setTimeout(() => { try { $('#chatText').focus(); } catch (e) {} }, 50);
 }
 function closeChat() {
   if (chat.recording) finishChatRecording();
+  if (live.on) stopLive();
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
   $('#chatPage').style.display = 'none'; document.body.style.overflow = '';
 }
@@ -2369,6 +2572,59 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowDown') { e.preventDefault(); rollTr(-1); }
 });
 
+
+/* ----- studio tools: whole-project edits with undo/redo ----- */
+const ST = { undo: [], redo: [] };
+const stSnap = () => tracks.filter(t => t.type === 'melody').map(t => ({ id: t.id, notes: t.notes.map(n => Object.assign({}, n)) }));
+function stApply(snap) {
+  snap.forEach(x => { const t = tracks.find(y => y.id === x.id); if (t) { t.notes = x.notes.map(n => Object.assign({}, n)); buildPart(t); } });
+  renderTracks();
+}
+function stEdit(label, fn) {
+  const mel = tracks.filter(t => t.type === 'melody');
+  if (!mel.length) { $('#stInfo').textContent = 'no melody tracks yet'; return; }
+  ST.undo.push(stSnap()); if (ST.undo.length > 40) ST.undo.shift(); ST.redo = [];
+  mel.forEach(t => { fn(t); buildPart(t); });
+  renderTracks(); $('#stInfo').textContent = label;
+}
+function stUndo() { if (!ST.undo.length) return; ST.redo.push(stSnap()); stApply(ST.undo.pop()); $('#stInfo').textContent = 'undone'; }
+function stRedo() { if (!ST.redo.length) return; ST.undo.push(stSnap()); stApply(ST.redo.pop()); $('#stInfo').textContent = 'redone'; }
+$('#stUndo').addEventListener('click', stUndo); $('#stRedo').addEventListener('click', stRedo);
+$('#stTrUp').addEventListener('click', () => stEdit('transposed +1', t => t.notes.forEach(n => n.midi = clampMidi(n.midi + 1))));
+$('#stTrDn').addEventListener('click', () => stEdit('transposed −1', t => t.notes.forEach(n => n.midi = clampMidi(n.midi - 1))));
+$('#stHuman').addEventListener('click', () => stEdit('humanized', t => t.notes.forEach(n => {
+  n.startB = Math.max(0, n.startB + (Math.random() - 0.5) * 0.06);
+  n.vel = Math.max(0.3, Math.min(1, (n.vel || 0.85) + (Math.random() - 0.5) * 0.16));
+})));
+$('#stTight').addEventListener('click', () => {
+  const g = parseInt($('#gridSel').value, 10) || 4;
+  stEdit('tightened to 1/' + (g * 4), t => t.notes.forEach(n => {
+    const st = 1 / g; n.startB = Math.round(n.startB / st) * st; n.durB = Math.max(st, Math.round(n.durB / st) * st);
+  }));
+});
+$('#stDouble').addEventListener('click', () => stEdit('half-time', t => t.notes.forEach(n => { n.startB *= 2; n.durB *= 2; })));
+
+$('#stCoach').addEventListener('click', () => {
+  const tips = [], mel = tracks.filter(t => t.type === 'melody'), drums = tracks.filter(t => t.type === 'drums'), aud = tracks.filter(t => t.type === 'audio');
+  const bass = mel.filter(t => BASSY.indexOf(t.instKey) !== -1), lead = mel.filter(t => !t.isBand && BASSY.indexOf(t.instKey) === -1);
+  if (!tracks.length) tips.push('Start by humming or singing a short idea (4–8 bars), then say what instrument it should become.');
+  if (mel.length && !drums.length) tips.push('No drums yet — a simple beat makes the idea feel like a song.');
+  if (lead.length && !bass.length) tips.push('Add a bass or tap 🎸 Band on your melody: the low end is what makes it sound finished.');
+  if (aud.length && mel.length) tips.push('Your raw voice and an instrument play together — mute the voice once the instrument line sounds right.');
+  const loud = tracks.filter(t => !t.muted && t.volume > 0.9).length; if (loud > 1) tips.push('Several tracks are near full volume — pull the background ones down to leave room for the lead.');
+  if (mel.length > 2 && !mel.some(t => t.rev > 0.05)) tips.push('Everything is dry. A little reverb on the lead adds depth.');
+  const len = parseInt($('#bars').value, 10) || 8; if (len < 8 && mel.length) tips.push('Songs feel complete at 8+ bars: repeat your idea, then vary it (Variation / answer phrase).');
+  if (mel.length >= 2 && drums.length) tips.push('Use Pump on pads/chords so they duck with the kick; then export with Master sound → Balanced at −14 LUFS for sharing.');
+  if (!tips.length) tips.push('Looks balanced. Try Humanize for feel, then export at your target loudness.');
+  const o = $('#coachOut'); o.style.display = 'block'; o.innerHTML = '<b>Coach</b><br>• ' + tips.join('<br>• ');
+});
+document.addEventListener('keydown', e => {
+  if (RP.t) return;
+  const tg = (e.target && e.target.tagName) || ''; if (/INPUT|TEXTAREA|SELECT/.test(tg)) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); e.shiftKey ? stRedo() : stUndo(); }
+  else if (e.code === 'Space') { e.preventDefault(); $('#playBtn').click(); }
+});
+
 /* =====================================================================
    7. TRANSPORT, MASTERING, EXPORT
 ===================================================================== */
@@ -2428,17 +2684,91 @@ $('#midiBtn').addEventListener('click', () => {
   });
   download(new Blob([DSP.encodeMidi(S.bpm, defs)], { type: 'audio/midi' }), 'melodize-song.mid');
 });
-$('#exportBtn').addEventListener('click', async () => {
+/* ----- lossless render: capture the master (and every track) as raw float audio — no codec in between ----- */
+let tapReady = false;
+async function ensureTapModule() {
+  if (tapReady) return;
+  const code = "class P extends AudioWorkletProcessor{constructor(){super();this.on=true;this.b=[[],[]];this.n=0;this.port.onmessage=e=>{if(e.data==='stop'){this.flush();this.on=false;this.port.postMessage({done:true})}}}flush(){if(this.n){this.port.postMessage({c:this.b.map(a=>{const o=new Float32Array(this.n);let k=0;a.forEach(x=>{o.set(x,k);k+=x.length});return o})});this.b=[[],[]];this.n=0}}process(i){if(!this.on)return false;const a=i[0];if(a&&a.length){const L=a[0],R=a[1]||a[0];this.b[0].push(L.slice(0));this.b[1].push(R.slice(0));this.n+=L.length;if(this.n>=8192)this.flush()}return true}}registerProcessor('mz-tap',P);";
+  await Tone.context.addAudioWorkletModule(URL.createObjectURL(new Blob([code], { type: 'application/javascript' })), 'mz-tap');
+  tapReady = true;
+}
+async function openTap(src) {
+  await ensureTapModule();
+  const node = Tone.context.createAudioWorkletNode('mz-tap', { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 2, channelCountMode: 'explicit' });
+  const parts = [[], []]; let finish; const done = new Promise(r => { finish = r; });
+  node.port.onmessage = e => { if (e.data.c) { parts[0].push(e.data.c[0]); parts[1].push(e.data.c[1]); } if (e.data.done) finish(); };
+  const sink = new Tone.Gain(0); node.connect(sink.input || sink); sink.toDestination();
+  Tone.connect(src, node);
+  return {
+    async stop() {
+      node.port.postMessage('stop'); await Promise.race([done, sleep(1000)]);
+      try { src.disconnect(node); } catch (e) {} try { node.disconnect(); } catch (e) {} try { sink.dispose(); } catch (e) {}
+      const cat = a => { let n = 0; a.forEach(x => { n += x.length; }); const o = new Float32Array(n); let k = 0; a.forEach(x => { o.set(x, k); k += x.length; }); return o; };
+      return { chans: [cat(parts[0]), cat(parts[1])], sr: Tone.context.sampleRate };
+    }
+  };
+}
+async function renderSong(withStems, onTick) {
+  await Tone.start(); stopPlayback();
+  const wasLoop = $('#loopChk').checked; $('#loopChk').checked = false; updateLoop();
+  const mixTap = await openTap(limiter), stemTaps = [];
+  if (withStems) for (const t of tracks) if (audible(t)) stemTaps.push({ t, tap: await openTap(t.chain.pan) });
+  Tone.Transport.position = 0; Tone.Transport.start();
+  const total = (songLen() + 2.4) * 1000, t0 = performance.now();
+  while (performance.now() - t0 < total) { if (onTick) onTick(Math.min(1, (performance.now() - t0) / total)); await sleep(200); }
+  Tone.Transport.stop();
+  const mix = await mixTap.stop(), stems = [];
+  for (const st of stemTaps) stems.push({ t: st.t, data: await st.tap.stop() });
+  $('#loopChk').checked = wasLoop; updateLoop();
+  return { mix, stems };
+}
+const trackLabel = t => t.type === 'melody' ? (t.def && t.def.label || t.instKey) : t.type === 'drums' ? 'Drums' : 'Voice';
+function trimTail(chans, sr) {
+  let last = 0; const thr = 0.0006;
+  for (const c of chans) for (let i = c.length - 1; i > last; i--) if (Math.abs(c[i]) > thr) { last = i; break; }
+  const end = Math.min(chans[0].length, last + Math.round(sr * 0.35)), fade = Math.min(end, Math.round(sr * 0.03));
+  const out = chans.map(c => c.slice(0, end));
+  out.forEach(c => { for (let i = 0; i < fade; i++) c[end - 1 - i] *= i / fade; });
+  return out;
+}
+async function doExport(withStems) {
   if (!tracks.length) { alert('Add at least one track before exporting.'); return; }
   tasteReward();
-  await Tone.start();
-  stopPlayback();
+  const btn = withStems ? $('#stemsBtn') : $('#exportBtn'), original = btn.textContent, other = withStems ? $('#exportBtn') : $('#stemsBtn');
+  btn.disabled = true; other.disabled = true;
+  try {
+    const { mix, stems } = await renderSong(withStems, p => { btn.textContent = '⏺ Rendering ' + Math.round(p * 100) + '%'; $('#progFill').style.width = (p * 100) + '%'; });
+    const sr = mix.sr, chans = trimTail(mix.chans, sr), n = chans[0].length;
+    const target = parseFloat($('#expTarget').value), bits = parseInt($('#expBits').value, 10) === 24 ? 24 : 16;
+    let info = 'Exported as it was rendered.';
+    if (target < 0) { const r = DSP.masterToLufs(chans, sr, { lufs: target, ceilingDb: -1 }); info = 'Mastered to ' + r.after.toFixed(1) + ' LUFS · peak ' + r.peakDb.toFixed(1) + ' dBFS · ' + bits + '-bit'; }
+    const wav = DSP.encodeWav(chans, sr, bits);
+    if (!withStems) download(new Blob([wav], { type: 'audio/wav' }), 'melodize-song.wav');
+    else {
+      const files = [{ name: 'mix.wav', data: new Uint8Array(wav) }];
+      stems.forEach((st, i) => {
+        const ch = st.data.chans.map(c => { const o = new Float32Array(n); o.set(c.subarray(0, Math.min(n, c.length))); return o; });
+        files.push({ name: 'stems/' + String(i + 1).padStart(2, '0') + '-' + String(trackLabel(st.t)).replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '-') + '.wav', data: new Uint8Array(DSP.encodeWav(ch, sr, bits)) });
+      });
+      download(new Blob([DSP.makeZip(files)], { type: 'application/zip' }), 'melodize-stems.zip');
+      info += ' · ' + stems.length + ' stems (unmastered) in the ZIP';
+    }
+    $('#mixInfo').textContent = info; setStatus('exported', 'ready');
+  } catch (e) {
+    console.error(e);
+    if (!withStems) { try { await legacyExport(); } catch (e2) { alert('Export failed: ' + (e2 && e2.message || e2)); } }
+    else alert('Stem export is not supported on this browser (' + (e && e.message || e) + '). The normal WAV export still works.');
+  }
+  btn.textContent = original; btn.disabled = false; other.disabled = false; $('#progFill').style.width = '0%';
+}
+async function legacyExport() {            // old way (real-time recorder): only used if the lossless capture is unavailable
+  await Tone.start(); stopPlayback();
   const btn = $('#exportBtn'), original = btn.textContent;
   btn.textContent = '⏺ Rendering…'; btn.disabled = true;
   const wasLoop = $('#loopChk').checked; $('#loopChk').checked = false; updateLoop();
   recorder.start();
   Tone.Transport.position = 0; Tone.Transport.start();
-  await sleep((songLen() + 2.2) * 1000);          // song + reverb/echo tail
+  await sleep((songLen() + 2.2) * 1000);
   Tone.Transport.stop();
   const recording = await recorder.stop();
   $('#loopChk').checked = wasLoop; updateLoop();
@@ -2447,19 +2777,38 @@ $('#exportBtn').addEventListener('click', async () => {
     const chans = []; for (let c = 0; c < buf.numberOfChannels; c++) chans.push(buf.getChannelData(c));
     DSP.normalizeLoudness(chans, -16, -1);
     download(new Blob([DSP.encodeWav(chans, buf.sampleRate)], { type: 'audio/wav' }), 'melodize-song.wav');
-  } catch (e) {
-    console.warn('WAV conversion failed, saving original', e);
-    download(recording, 'melodize-song.webm');
-  }
+  } catch (e) { download(recording, 'melodize-song.webm'); }
   btn.textContent = original; btn.disabled = false;
-});
+}
+$('#exportBtn').addEventListener('click', () => doExport(false));
+$('#stemsBtn').addEventListener('click', () => doExport(true));
+
+/* ----- master sound presets + reverb rooms ----- */
+const MASTER_PRESETS = {
+  balanced: { low: 0, mid: 0, high: 0, comp: 0.4, width: 0.5 }, warm: { low: 2.5, mid: -0.5, high: -2, comp: 0.45, width: 0.5 },
+  bright: { low: 0, mid: 0.5, high: 3.5, comp: 0.4, width: 0.6 }, punchy: { low: 2, mid: -1, high: 2, comp: 0.65, width: 0.5 }, wide: { low: 1, mid: 0, high: 1.5, comp: 0.4, width: 0.9 }
+};
+function applyPreset(name) {
+  const p = MASTER_PRESETS[name] || MASTER_PRESETS.balanced; S.preset = MASTER_PRESETS[name] ? name : 'balanced';
+  eq.low.value = p.low; eq.mid.value = p.mid; eq.high.value = p.high; widener.width.value = p.width;
+  $('#compAmt').value = p.comp; compressor.threshold.value = -36 + p.comp * 28; compressor.ratio.value = 1.5 + p.comp * 6;
+  $('#warmth').value = 0; $('#masterPreset').value = S.preset;
+}
+const ROOMS = { room: { decay: 1.1, pre: 0.008 }, plate: { decay: 2.1, pre: 0.012 }, hall: { decay: 3.4, pre: 0.025 }, cathedral: { decay: 6.5, pre: 0.045 } };
+async function applyRoom(name) {
+  const r = ROOMS[name] || ROOMS.hall; S.room = ROOMS[name] ? name : 'hall'; $('#roomSel').value = S.room;
+  reverbBus.decay = r.decay; reverbBus.preDelay = r.pre;
+  try { await reverbBus.generate(); } catch (e) {}
+}
+$('#masterPreset').addEventListener('change', e => applyPreset(e.target.value));
+$('#roomSel').addEventListener('change', e => applyRoom(e.target.value));
 
 /* =====================================================================
    8. SAVE / OPEN PROJECT
 ===================================================================== */
 $('#saveBtn').addEventListener('click', () => {
   tasteReward();
-  const data = { app:'melodize', version:2, settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize },
+  const data = { app:'melodize', version:2, settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize, preset:S.preset || 'balanced', room:S.room || 'hall' },
     tracks: tracks.map(t => {
       const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, repeat:!!t.repeat };
       return t.type === 'melody'
@@ -2480,7 +2829,7 @@ $('#loadFile').addEventListener('change', async e => {
     tracks.slice().forEach(t => removeTrack(t.id, true));
     const s = data.settings || {};
     S.bpm = s.bpm || 120; S.bars = s.bars || 8; S.keyRoot = s.keyRoot == null ? 'auto' : s.keyRoot; S.scale = s.scale || 'auto'; S.grid = s.grid == null ? 4 : s.grid;
-    S.swing = s.swing || 0; S.humanize = s.humanize !== false;
+    S.swing = s.swing || 0; S.humanize = s.humanize !== false; applyPreset(s.preset); applyRoom(s.room);
     $('#bpm').value = S.bpm; $('#bars').value = S.bars; $('#scaleSel').value = S.scale; $('#gridSel').value = String(S.grid);
     $('#swingSel').value = String(S.swing); $('#humanizeChk').checked = S.humanize;
     keySel.value = S.keyRoot === 'auto' ? 'auto' : String(S.keyRoot);

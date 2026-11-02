@@ -943,21 +943,113 @@ function hitsToPattern(hits, bpm, stepsPerBeat) {
 }
 
 /* ---------- WAV encoding (16-bit PCM) ---------- */
-function encodeWav(channels, sampleRate) {
-  const nCh = channels.length, len = channels[0].length;
-  const buf = new ArrayBuffer(44 + len * nCh * 2);
+function encodeWav(channels, sampleRate, bits) {
+  bits = bits === 24 ? 24 : 16;
+  const nCh = channels.length, len = channels[0].length, bps = bits / 8;
+  const buf = new ArrayBuffer(44 + len * nCh * bps);
   const v = new DataView(buf);
   const wr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
-  wr(0, 'RIFF'); v.setUint32(4, 36 + len * nCh * 2, true); wr(8, 'WAVE'); wr(12, 'fmt ');
+  wr(0, 'RIFF'); v.setUint32(4, 36 + len * nCh * bps, true); wr(8, 'WAVE'); wr(12, 'fmt ');
   v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, nCh, true);
-  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * nCh * 2, true);
-  v.setUint16(32, nCh * 2, true); v.setUint16(34, 16, true); wr(36, 'data'); v.setUint32(40, len * nCh * 2, true);
-  let o = 44;
+  v.setUint32(24, sampleRate, true); v.setUint32(28, sampleRate * nCh * bps, true);
+  v.setUint16(32, nCh * bps, true); v.setUint16(34, bits, true); wr(36, 'data'); v.setUint32(40, len * nCh * bps, true);
+  let o = 44, seed = 12345;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   for (let i = 0; i < len; i++) for (let c = 0; c < nCh; c++) {
-    const s = Math.max(-1, Math.min(1, channels[c][i]));
-    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true); o += 2;
+    let x = Math.max(-1, Math.min(1, channels[c][i]));
+    if (bits === 16) {                                   // TPDF dither: no harsh quantisation noise on quiet tails
+      const d = (rnd() - rnd()) / 32768;
+      x = Math.max(-1, Math.min(1, x + d));
+      v.setInt16(o, Math.round(x < 0 ? x * 0x8000 : x * 0x7FFF), true); o += 2;
+    } else {
+      const q = Math.round(x < 0 ? x * 0x800000 : x * 0x7FFFFF);
+      v.setUint8(o, q & 255); v.setUint8(o + 1, (q >> 8) & 255); v.setUint8(o + 2, (q >> 16) & 255); o += 3;
+    }
   }
   return buf;
+}
+
+/* ---------- professional loudness: ITU-R BS.1770 / EBU R128 integrated LUFS ---------- */
+function kWeight(x, sr) {
+  const biquad = (inp, b0, b1, b2, a1, a2) => { const out = new Float64Array(inp.length); let x1 = 0, x2 = 0, y1 = 0, y2 = 0; for (let i = 0; i < inp.length; i++) { const xi = inp[i], yi = b0 * xi + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2; out[i] = yi; x2 = x1; x1 = xi; y2 = y1; y1 = yi; } return out; };
+  let K = Math.tan(Math.PI * 1681.974450955533 / sr), Q = 0.7071752369554196, Vh = Math.pow(10, 3.999843853973347 / 20), Vb = Math.pow(Vh, 0.4996667741545416), a0 = 1 + K / Q + K * K;
+  let y = biquad(x, (Vh + Vb * K / Q + K * K) / a0, 2 * (K * K - Vh) / a0, (Vh - Vb * K / Q + K * K) / a0, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0);
+  K = Math.tan(Math.PI * 38.13547087602444 / sr); Q = 0.5003270373238773; a0 = 1 + K / Q + K * K;
+  return biquad(y, 1, -2, 1, 2 * (K * K - 1) / a0, (1 - K / Q + K * K) / a0);
+}
+function measureLufs(chans, sr) {
+  const kw = chans.map(c => kWeight(c, sr)), block = Math.round(0.4 * sr), hop = Math.round(0.1 * sr), n = chans[0].length;
+  if (n < block) return -70;
+  const cum = kw.map(c => { const a = new Float64Array(n + 1); for (let i = 0; i < n; i++) a[i + 1] = a[i] + c[i] * c[i]; return a; });
+  const ms = [];
+  for (let s0 = 0; s0 + block <= n; s0 += hop) { let z = 0; for (const a of cum) z += (a[s0 + block] - a[s0]) / block; ms.push(z); }
+  const lk = z => -0.691 + 10 * Math.log10(z + 1e-12);
+  let abs = ms.filter(z => lk(z) > -70); if (!abs.length) return -70;
+  const m1 = abs.reduce((a, b) => a + b, 0) / abs.length, rel = lk(m1) - 10;
+  const fin = abs.filter(z => lk(z) > rel); if (!fin.length) return lk(m1);
+  return lk(fin.reduce((a, b) => a + b, 0) / fin.length);
+}
+function peakOf(chans) { let p = 0; for (const c of chans) for (let i = 0; i < c.length; i++) { const a = Math.abs(c[i]); if (a > p) p = a; } return p; }
+function brickwallLimit(chans, sr, ceilDb, releaseSec) {
+  const ceil = Math.pow(10, ceilDb / 20), n = chans[0].length, L = Math.max(8, Math.round(sr * 0.005));
+  const need = new Float32Array(n); let hit = false;
+  for (let i = 0; i < n; i++) { let m = 0; for (const c of chans) { const a = Math.abs(c[i]); if (a > m) m = a; } if (m > ceil) { need[i] = ceil / m; hit = true; } else need[i] = 1; }
+  if (!hit) return 1;
+  // sliding minimum over the next L samples (look-ahead) …
+  const mn = new Float32Array(n), dq = new Int32Array(n + L + 2); let h = 0, t = 0;
+  for (let i = n - 1 + L; i >= 0; i--) {
+    if (i < n) { while (t > h && need[dq[t - 1]] >= need[i]) t--; dq[t++] = i; }
+    while (t > h && dq[h] > i + L) h++;
+    if (i < n) mn[i] = need[dq[h]];
+  }
+  // … smoothed over the previous L samples (so the gain glides down before the peak arrives), then a slow release
+  const rel = 1 - Math.exp(-1 / ((releaseSec || 0.09) * sr)); let acc = 0, prev = 1; const g = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    acc += mn[i]; if (i >= L) acc -= mn[i - L];
+    let v = acc / Math.min(L, i + 1);
+    v = Math.min(v, prev + (1 - prev) * rel);
+    g[i] = v; prev = v;
+  }
+  for (const c of chans) for (let i = 0; i < n; i++) c[i] *= g[i];
+  return 1;
+}
+function masterToLufs(chans, sr, opts) {
+  opts = opts || {}; const target = opts.lufs == null ? -14 : opts.lufs, ceil = opts.ceilingDb == null ? -1 : opts.ceilingDb;
+  const before = measureLufs(chans, sr); let cur = before;
+  if (cur <= -69 || peakOf(chans) < 1e-5) return { before, after: cur, peakDb: -120, gainDb: 0 };
+  let total = 0;
+  for (let pass = 0; pass < 4; pass++) {
+    const g = target - cur; if (Math.abs(g) < 0.15 && pass) break;
+    const f = Math.pow(10, g / 20); for (const c of chans) for (let i = 0; i < c.length; i++) c[i] *= f; total += g;
+    brickwallLimit(chans, sr, ceil, 0.09);
+    cur = measureLufs(chans, sr);
+    if (g < 0 && Math.abs(target - cur) < 0.3) break;
+  }
+  return { before, after: cur, peakDb: 20 * Math.log10(peakOf(chans) + 1e-12), gainDb: total };
+}
+
+/* ---------- tiny ZIP writer (store only) for stem export ---------- */
+let CRC_T = null;
+function crc32(u8) {
+  if (!CRC_T) { CRC_T = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC_T[n] = c >>> 0; } }
+  let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_T[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function makeZip(files) {   // files: [{ name, data: Uint8Array }]
+  const enc = s => { const o = []; for (const ch of unescape(encodeURIComponent(s))) o.push(ch.charCodeAt(0)); return Uint8Array.from(o); };
+  const parts = [], central = []; let offset = 0;
+  const u16 = n => [n & 255, (n >> 8) & 255], u32 = n => [n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >>> 24) & 255];
+  files.forEach(f => {
+    const name = enc(f.name), crc = crc32(f.data), size = f.data.length;
+    const local = Uint8Array.from([0x50, 0x4b, 3, 4, 20, 0, 0, 8, 0, 0, 0, 0, 0x21, 0, ...u32(crc), ...u32(size), ...u32(size), ...u16(name.length), 0, 0]);
+    parts.push(local, name, f.data);
+    central.push(Uint8Array.from([0x50, 0x4b, 1, 2, 20, 0, 20, 0, 0, 8, 0, 0, 0, 0, 0x21, 0, ...u32(crc), ...u32(size), ...u32(size), ...u16(name.length), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, ...u32(offset)]), name);
+    offset += local.length + name.length + size;
+  });
+  let cdSize = 0; central.forEach(c => { cdSize += c.length; });
+  const end = Uint8Array.from([0x50, 0x4b, 5, 6, 0, 0, 0, 0, ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(offset), 0, 0]);
+  const all = parts.concat(central, [end]); let total = 0; all.forEach(a => { total += a.length; });
+  const out = new Uint8Array(total); let o = 0; all.forEach(a => { out.set(a, o); o += a.length; });
+  return out.buffer;
 }
 
 /* ---------- Instrument advisor: describe a melody and rank instruments for it ---------- */
@@ -1214,8 +1306,75 @@ function extraChat(n, raw, r) {
   }
 }
 
+
+/* ---------- talking vs singing: which stretches of a recording are sung? ----------
+   Speech: pitch glides all the time, syllables last 80-200 ms, words are separated by gaps.
+   Singing / humming: notes are HELD (>= ~0.22 s) with steady pitch (vibrato allowed), mostly legato.
+   We find held steady notes, join the ones that follow each other, and call that a "sung region". */
+function singingRegions(data, sr, opts) {
+  opts = opts || {};
+  const sens = opts.sensitivity == null ? 1 : opts.sensitivity;            // >1 = accept more as singing, <1 = stricter
+  const minHold = 0.2 / sens, minTotal = 0.8 / sens, bigNote = 0.75 / sens, joinGap = 0.4, maxRange = 0.9 * sens;
+  const total = data.length / sr;
+  const tr = trackPitch(data, sr, {}), frames = tr.frames, hop = tr.hopSec, N = frames.length;
+  if (N < 12) return { regions: [], total, voiced: 0 };
+  const m = frames.map(f => f.midi);
+  let voicedN = 0; m.forEach(v => { if (!isNaN(v)) voicedN++; });
+  // 1) frames whose pitch stays within ~1 semitone over +-50 ms are "held" (vibrato allowed, glides are not)
+  const w = Math.max(2, Math.round(0.05 / hop)), held = new Array(N).fill(false);
+  for (let i = 0; i < N; i++) {
+    if (isNaN(m[i])) continue;
+    let lo = Infinity, hi = -Infinity, c = 0, cnt = 0;
+    for (let j = Math.max(0, i - w); j <= Math.min(N - 1, i + w); j++) { cnt++; if (!isNaN(m[j])) { c++; if (m[j] < lo) lo = m[j]; if (m[j] > hi) hi = m[j]; } }
+    held[i] = c >= 0.8 * (2 * w + 1) && hi - lo <= maxRange;
+  }
+  // 2) runs of held frames (tiny breaks allowed)
+  const runs = []; let i0 = 0;
+  while (i0 < N) {
+    if (!held[i0]) { i0++; continue; }
+    let e = i0, gap = 0;
+    for (let k = i0; k < N; k++) { if (held[k]) { e = k; gap = 0; } else if (++gap > 2) break; }
+    runs.push({ start: frames[i0].t - hop / 2, end: frames[e].t + hop / 2, dur: (e - i0 + 1) * hop });
+    i0 = e + 1;
+  }
+  const sust = runs.filter(r => r.dur >= minHold);
+  // 3) join held notes that follow each other
+  const groups = [];
+  sust.forEach(r => {
+    const g = groups[groups.length - 1];
+    if (g && r.start - g.end <= joinGap) { g.items++; g.end = r.end; g.sum += r.dur; g.max = Math.max(g.max, r.dur); }
+    else groups.push({ start: r.start, end: r.end, items: 1, sum: r.dur, max: r.dur });
+  });
+  const regions = [];
+  groups.forEach(g => {
+    if (!((g.items >= 2 && g.sum >= minTotal) || g.max >= bigNote)) return;
+    let st = g.start, en = g.end;
+    // include the attack / release (voiced frames right next to the held part)
+    for (let k = frames.length - 1, lim = 0; k >= 0 && lim < 40; k--) { if (frames[k].t >= st) continue; if (isNaN(m[k])) break; st = frames[k].t - hop / 2; lim++; }
+    for (let k = 0, lim = 0; k < frames.length && lim < 40; k++) { if (frames[k].t <= en) continue; if (isNaN(m[k])) break; en = frames[k].t + hop / 2; lim++; }
+    let vc = 0, tot = 0; frames.forEach((f, ix) => { if (f.t >= st && f.t <= en) { tot++; if (!isNaN(m[ix])) vc++; } });
+    if (tot && vc / tot < 0.5) return;
+    regions.push({ start: Math.max(0, st), end: Math.min(total, en), held: g.items, heldSec: Math.round(g.sum * 100) / 100 });
+  });
+  // quick notes right next to a confirmed sung region belong to it (fast passages)
+  regions.forEach(r => {
+    for (let pass = 0; pass < 6; pass++) {
+      let moved = false;
+      runs.forEach(u => {
+        if (u.dur < 0.1 / sens) return;
+        if (u.start > r.end && u.start - r.end <= 0.22) { r.end = u.end; moved = true; r.held++; }
+        else if (u.end < r.start && r.start - u.end <= 0.22) { r.start = u.start; moved = true; r.held++; }
+      });
+      if (!moved) break;
+    }
+  });
+  const merged = [];
+  regions.forEach(r => { const q = merged[merged.length - 1]; if (q && r.start - q.end <= 0.35) { q.end = r.end; q.held += r.held; q.heldSec += r.heldSec; } else merged.push(Object.assign({}, r)); });
+  return { regions: merged, total, voiced: voicedN / N };
+}
+
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav,
+  quantizeNotes, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav, singingRegions, measureLufs, masterToLufs, brickwallLimit, peakOf, makeZip, crc32,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });
