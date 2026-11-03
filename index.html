@@ -280,6 +280,8 @@
       <button class="btn small ghost" id="chatBack">← Back to studio</button>
       <div class="chat-title"><span class="nova-orb"></span> Nova<small id="chatSub">Talk, type, or sing — I'll help you pick instruments and build beats.</small></div>
       <label class="chk"><input type="checkbox" id="chatSpeak"> <svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg> Speak replies</label>
+      <select id="novaVoice" title="Nova's voice. Auto picks the warmest female voice your device has." style="max-width:210px"><option value="">Auto — warm female voice</option></select>
+      <button class="btn small ghost" id="novaHear" title="Hear Nova">Hear Nova</button>
       <button class="btn small" id="chatVoice" title="Hands-free conversation: talk, sing, talk again"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg> Voice chat</button>
       <button class="btn small" id="chatCfg" title="Connect a real AI (optional)"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg> AI: built-in</button>
     </div>
@@ -477,6 +479,8 @@
       <button class="btn small ghost" id="stTrDn" title="Transpose every melody down a semitone">Key −1</button>
       <button class="btn small ghost" id="stHuman" title="Slightly loosen timing and velocity so it feels played, not programmed">Humanize</button>
       <button class="btn small ghost" id="stTight" title="Snap all melody notes to the Quantize grid">Tighten</button>
+      <button class="btn small ghost" id="stKeys" title="If your melodies are in different keys, move them into one shared key so they sound good together. Undo works.">Match keys</button>
+      <label class="chk" title="When you record a new melody over existing ones, move it into their key automatically"><input type="checkbox" id="autoKey" checked> Auto-match keys</label>
       <button class="btn small ghost" id="stLock" title="Make every melody line up with the beat: finds the small speed change and shift that put your notes on the drum grid, then snaps them. Undo works.">Lock to beat</button>
       <button class="btn small ghost" id="stDouble" title="Play every melody at half speed (a half-time feel). Press again to go back to normal.">½ time</button>
       <button class="btn small ghost" id="stCoach" title="Get practical suggestions for your song"><svg class="i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z"/></svg> Coach</button>
@@ -1259,11 +1263,16 @@ async function onRecordingStopped(data, sr) {
         const drumsHeard = tracks.some(t => t.type === 'drums');
         await addMelodyTrack(S.instrument, notes);
         const nt = tracks[tracks.length - 1];
-        let lockMsg = '';
+        let lockMsg = '', keyMsg = '';
+        if ($('#autoKey').checked) {
+          const anc = anchorKey(nt.id);
+          if (anc) { const { changed, r } = matchTrackKey(nt, anc); if (changed) { buildPart(nt); renderTracks(); keyMsg = 'Moved your ' + nt.def.label.toLowerCase() + ' ' + (r.shift > 0 ? 'up ' : 'down ') + Math.abs(r.shift) + ' semitone' + (Math.abs(r.shift) === 1 ? '' : 's') + ' so it sits in ' + KEY_NAME(anc.root) + ' ' + SCALE_NICE[anc.scale] + ' with ' + anc.from + '.'; } }
+        }
         if (drumsHeard) { const r = lockTrackToBeat(nt, 0.06); buildPart(nt); renderTracks(); lockMsg = r.after < r.before - 0.01 ? 'Locked to your drum beat (timing deviation ' + (r.before * 100).toFixed(0) + '% → ' + (r.after * 100).toFixed(0) + '%).' : ''; }
         lastTake = { data, sr, opts, trackId: nt.id, lock: drumsHeard };
         showTake(res);
         if (lockMsg) $('#takeHint').insertAdjacentHTML('afterbegin', '<b style="color:var(--accent)">' + lockMsg + '</b><br>');
+        if (keyMsg) $('#takeHint').insertAdjacentHTML('afterbegin', '<b style="color:var(--accent)">' + keyMsg + '</b> <small>(turn off "Auto-match keys" to keep what you sang)</small><br>');
       }
     }
   } catch (err) {
@@ -1754,18 +1763,62 @@ function setChips(list) {
     host.appendChild(b);
   });
 }
+/* ----- Nova's voice: a warm, calm, friendly female voice (best one the device has), spoken sentence by sentence ----- */
+const FEMALE_HINT = /(aria|jenny|sonia|libby|michelle|ava\b|emma|olivia|natasha|clara|samantha|karen|moira|tessa|serena|allison|susan|victoria|fiona|zira|hazel|catherine|female|google uk english female|google us english|nova|joanna|salli|kendra|kimberly|ivy|amy|emily|neerja|heera|veena|libby|maisie|mia\b)/i;
+const MALE_HINT = /(david|mark\b|guy\b|ryan|james|daniel|alex\b|fred\b|george|richard|thomas|oliver|ravi|rishi|prabhat|male\b|google uk english male|christopher|eric\b|roger|steffan|brian|matthew|arthur|bruce|junior|ralph)/i;
+let novaVoices = [];
+function loadNovaVoices() { try { novaVoices = (window.speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang)); } catch (e) { novaVoices = []; } return novaVoices; }
+function scoreVoice(v) {
+  let sc = 0; const n = v.name || '';
+  if (/natural|neural/i.test(n)) sc += 12; else if (/online/i.test(n)) sc += 8;
+  if (FEMALE_HINT.test(n)) sc += 9;
+  if (MALE_HINT.test(n)) sc -= 30;
+  if (/en-US|en-GB|en-AU|en-IN|en-CA|en-IE/i.test(v.lang)) sc += 2;
+  if (/en-US|en-GB/i.test(v.lang)) sc += 1;
+  if (/espeak|compact/i.test(n)) sc -= 6;
+  return sc;
+}
+function pickNovaVoice() {
+  const list = novaVoices.length ? novaVoices : loadNovaVoices(); if (!list.length) return null;
+  let saved = ''; try { saved = localStorage.getItem('nova.voice') || ''; } catch (e) {}
+  if (saved) { const v = list.find(x => x.voiceURI === saved || x.name === saved); if (v) return v; }
+  return list.slice().sort((a, b) => scoreVoice(b) - scoreVoice(a))[0];
+}
+function fillVoiceSelect() {
+  const sel = document.getElementById('novaVoice'); if (!sel) return;
+  const list = loadNovaVoices(); if (!list.length) return;
+  let saved = ''; try { saved = localStorage.getItem('nova.voice') || ''; } catch (e) {}
+  sel.innerHTML = '<option value="">Auto — warm female voice</option>' + list.slice().sort((a, b) => scoreVoice(b) - scoreVoice(a)).map(v => '<option value="' + v.voiceURI.replace(/"/g, '&quot;') + '">' + v.name.replace(/</g, '') + '</option>').join('');
+  sel.value = saved && list.some(v => v.voiceURI === saved) ? saved : '';
+}
+try { window.speechSynthesis.onvoiceschanged = fillVoiceSelect; } catch (e) {}
+function softenForSpeech(t) {
+  return String(t).replace(/[^\x20-\x7E -ɏ]/g, ' ').replace(/[*_`#>]/g, '').replace(/\s*[•·]\s*/g, '. ').replace(/\bBPM\b/g, 'beats per minute').replace(/\bLUFS\b/g, 'loudness units')
+    .replace(/\s+—\s+/g, ', ').replace(/\s+/g, ' ').trim();
+}
 function speakText(t, done) {
-  let fired = false, timer = 0;
+  let fired = false, timer = 0, queue = [];
   const fin = () => { if (fired) return; fired = true; chat.speaking = false; clearTimeout(timer); if (done) done(); };
-  let clean = String(t).replace(/[^\x20-\x7E -ɏ]/g, '').replace(/\s+/g, ' ').trim();
-  if (clean.length > 320) { const cut = clean.slice(0, 320), k = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! ')); clean = k > 80 ? cut.slice(0, k + 1) : cut; }
-  timer = setTimeout(fin, Math.max(2500, clean.length * 95));   // safety net if the browser never fires onend
+  let clean = softenForSpeech(t);
+  if (clean.length > 520) { const cut = clean.slice(0, 520), k = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! ')); clean = k > 100 ? cut.slice(0, k + 1) : cut; }
+  timer = setTimeout(fin, Math.max(3000, clean.length * 110));   // safety net if the browser never fires onend
   try {
     if (!('speechSynthesis' in window)) { fin(); return; }
     window.speechSynthesis.cancel();
     chat.speaking = true;
-    const u = new SpeechSynthesisUtterance(clean);
-    u.rate = 1.02; u.onend = fin; u.onerror = fin; window.speechSynthesis.speak(u);
+    queue = clean.match(/[^.!?]+[.!?]*\s*/g) || [clean];
+    const voice = pickNovaVoice();
+    const next = () => {
+      const part = (queue.shift() || '').trim();
+      if (!part) { if (queue.length) { next(); return; } fin(); return; }
+      const u = new SpeechSynthesisUtterance(part);
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      const q = /\?\s*$/.test(part);
+      u.rate = 0.93; u.pitch = q ? 1.14 : 1.06; u.volume = 1;      // unhurried and gentle, a touch of lift on questions
+      u.onend = () => { if (queue.length) setTimeout(next, 140); else fin(); }; u.onerror = fin;
+      window.speechSynthesis.speak(u);
+    };
+    next();
   } catch (e) { fin(); }
 }
 function afterBot() { if (chat.voiceOn && !chat.recording && !chat.singing && !chat.speaking) setTimeout(startListen, 250); }
@@ -2693,6 +2746,9 @@ function closeChat() {
 }
 $('#openChat').addEventListener('click', openChat);
 $('#chatBack').addEventListener('click', closeChat);
+$('#novaVoice').addEventListener('change', e => { try { localStorage.setItem('nova.voice', e.target.value); } catch (x) {} });
+$('#novaHear').addEventListener('click', () => { fillVoiceSelect(); speakText("Hi, it's Nova. I'm so glad you're here. Hum me a little tune, and let's turn it into something beautiful together.", null); });
+fillVoiceSelect(); setTimeout(fillVoiceSelect, 600);
 $('#chatSpeak').addEventListener('change', e => { chat.speak = e.target.checked; if (!chat.speak) { try { window.speechSynthesis.cancel(); } catch (x) {} } });
 $('#chatSing').addEventListener('click', () => chatSing('melody'));
 function sendTyped() { const el = $('#chatText'), t = (el.value || '').trim(); if (!t) return; el.value = ''; handleText(t, true); }
@@ -2973,6 +3029,35 @@ $('#stTight').addEventListener('click', () => {
   stEdit('tightened to 1/' + (g * 4), t => t.notes.forEach(n => {
     const st = 1 / g; n.startB = Math.round(n.startB / st) * st; n.durB = Math.max(st, Math.round(n.durB / st) * st);
   }));
+});
+/* ----- one shared key: move melodies into the key of the first one (or the Key you chose above) ----- */
+const KEY_NAME = r => DSP.NOTE_NAMES[((r % 12) + 12) % 12];
+const SCALE_NICE = { major: 'major', minor: 'minor', majorPent: 'major', minorPent: 'minor', blues: 'minor' };
+function anchorKey(excludeId) {
+  if (typeof S.keyRoot === 'number' && S.scale && S.scale !== 'auto' && S.scale !== 'off') return { root: S.keyRoot, scale: S.scale, from: 'the key you chose' };
+  const a = tracks.find(t => t.type === 'melody' && t.notes.length && t.id !== excludeId && !t.keyIgnore); if (!a) return null;
+  const k = DSP.keyOfMelody(a.notes.map(n => ({ midi: n.midi + 12 * a.octave, durB: n.durB })));
+  return k ? { root: k.root, scale: k.scale, from: 'your ' + (a.def ? a.def.label.toLowerCase() : 'first melody') } : null;
+}
+function matchTrackKey(t, anchor) {
+  const r = DSP.matchToKey(t.notes.map(n => ({ midi: n.midi, durB: n.durB })), anchor);
+  if (r.shift === 0 && r.fitBefore >= 0.93) return { changed: false, r };
+  t.notes = t.notes.map((n, i) => Object.assign({}, n, { midi: clampMidi(r.notes[i].midi) }));
+  return { changed: true, r };
+}
+$('#stKeys').addEventListener('click', () => {
+  const mel = tracks.filter(t => t.type === 'melody' && t.notes.length);
+  if (mel.length < 2 && !(typeof S.keyRoot === 'number' && S.scale !== 'auto' && S.scale !== 'off')) { $('#stInfo').textContent = 'You need two melodies (or pick a Key and scale above) to match keys.'; return; }
+  const anchor = anchorKey(0); if (!anchor) { $('#stInfo').textContent = 'No key found yet.'; return; }
+  ST.undo.push(stSnap()); if (ST.undo.length > 40) ST.undo.shift(); ST.redo = [];
+  const anchorTrack = typeof S.keyRoot === 'number' && S.scale !== 'auto' && S.scale !== 'off' ? null : mel[0], msg = [];
+  mel.forEach(t => {
+    if (t === anchorTrack) return;
+    const { changed, r } = matchTrackKey(t, anchor); buildPart(t);
+    msg.push(t.def.label + ': ' + (changed ? (r.shift > 0 ? 'moved up ' : 'moved down ') + Math.abs(r.shift) + ' semitone' + (Math.abs(r.shift) === 1 ? '' : 's') : 'already fits'));
+  });
+  growBarsToFit(); rebuildAllParts(); renderTracks();
+  $('#stInfo').textContent = 'Everything is now in ' + KEY_NAME(anchor.root) + ' ' + SCALE_NICE[anchor.scale] + ' (' + anchor.from + ') — ' + msg.join(' · ') + '. (Undo if you prefer the original.)';
 });
 function lockTrackToBeat(t, maxStretch) {
   const r = DSP.fitToGrid(t.notes, { stepBeats: 0.5, snapBeats: S.grid ? 1 / S.grid : 0.25, maxStretch: maxStretch == null ? 0.15 : maxStretch });

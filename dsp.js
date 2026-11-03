@@ -454,6 +454,31 @@ function snapToScale(midi, root, scaleName) {
   return best;
 }
 
+/* ---------- make several melodies share one key ----------
+   anchor = { root, scale } (the key to match). notes = [{ midi, durB }]. Tries every shift of -6..+5 semitones and keeps the one that puts the most of the melody inside the anchor's
+   scale (smallest move wins ties); what is still outside is then pulled to the nearest scale note. */
+function scaleFamily(scaleName) { return (scaleName === 'minor' || scaleName === 'minorPent' || scaleName === 'blues') ? 'minor' : 'major'; }
+function matchToKey(notes, anchor, opts) {
+  opts = opts || {};
+  const fam = scaleFamily(anchor.scale), tones = SCALES[fam].map(d => (anchor.root + d) % 12);
+  const W = notes.reduce((a, n) => a + Math.max(0.1, n.durB || 0.5), 0) || 1;
+  const dist = (m, d) => { const pc = (((m + d) % 12) + 12) % 12; let best = 6; for (const t of tones) { let x = Math.abs(pc - t); if (x > 6) x = 12 - x; if (x < best) best = x; } return best; };
+  const cost = d => notes.reduce((a, n) => a + Math.max(0.1, n.durB || 0.5) * Math.min(dist(n.midi, d), 2) ** 2, 0) / W;
+  const inKey = d => notes.reduce((a, n) => a + (dist(n.midi, d) === 0 ? Math.max(0.1, n.durB || 0.5) : 0), 0) / W;
+  const before = inKey(0);
+  let best = { d: 0, c: cost(0) };
+  for (let d = -6; d <= 5; d++) { const c = cost(d) + 0.002 * Math.abs(d); if (c < best.c - 1e-9) best = { d, c }; }
+  if (before >= (opts.okFit == null ? 0.93 : opts.okFit)) best = { d: 0, c: cost(0) };       // already fits: leave it alone
+  const out = notes.map(n => { const m = n.midi + best.d; return Object.assign({}, n, { midi: snapToScale(m, anchor.root, fam) }); });
+  return { notes: out, shift: best.d, fitBefore: before, fitAfter: out.reduce((a, n) => a + (dist(n.midi, 0) === 0 ? Math.max(0.1, n.durB || 0.5) : 0), 0) / W, family: fam };
+}
+/* the key a finished melody (midi + durB) is in */
+function keyOfMelody(notes) {
+  if (!notes.length) return null;
+  const si = detectScale(notes.map(n => ({ rawMidi: n.midi, dur: Math.min(1.5, (n.durB || 0.5) * 0.5) })));
+  return { root: si.root, scale: si.scale, cost: si.cost, rel: si.rel };
+}
+
 /* ---------- lock a played melody to the project's beat ----------
    Finds the small speed change and time shift that make the notes land best on the grid (eighths by default),
    then snaps them there. Notes are in beats: [{startB, durB, ...}]. */
@@ -1505,6 +1530,6 @@ function singingRegions(data, sr, opts) {
 
 return { NOTE_NAMES, freqToMidi, midiToFreq, midiToNoteName, median, makeFFT, highpass,
   trackPitch, estimateTuningOffset, segmentNotes, detectKey, SCALES, snapToScale,
-  quantizeNotes, fitToGrid, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav, singingRegions, measureLufs, masterToLufs, brickwallLimit, peakOf, makeZip, crc32,
+  quantizeNotes, fitToGrid, matchToKey, keyOfMelody, scaleFamily, transcribe, refineNotes, estimateTempo, normalizeLoudness, rollOps, encodeMidi, decodeWav, harmonize, autoBand, bandParts, BAND_STYLES, answerPhrase, motifFromScene, sceneRecipe, taste, scaleLadder, detectDrumHits, hitsToPattern, encodeWav, singingRegions, measureLufs, masterToLufs, brickwallLimit, peakOf, makeZip, crc32,
   INSTRUMENT_PROFILES, melodyFeatures, describeMelody, recommendInstruments, parseChat, INSTRUMENT_ALIASES };
 });
