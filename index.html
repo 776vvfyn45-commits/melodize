@@ -1750,7 +1750,7 @@ function tasteSummary() {
 const STYLE_PRESET = { house:'House / EDM', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-Hop', dnb:'Drum & Bass',
   rock:'Rock (ride', pop:'Pop / Rock', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi' };
 const STYLE_LABEL = { house:'House', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-hop', dnb:'Drum & Bass', rock:'Rock', pop:'Pop', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi' };
-const chat = { take: null, mood: null, genre: null, afterSing: null, pendingInstrument: null, recording: null, speak: false, started: false };
+const chat = { pile: [], pileBubble: null, section: null, take: null, mood: null, genre: null, afterSing: null, pendingInstrument: null, recording: null, speak: false, started: false };
 const chatMsgs = $('#chatMsgs');
 const lastDrum = () => tracks.slice().reverse().find(t => t.type === 'drums');
 
@@ -1801,24 +1801,28 @@ function speakText(t, done) {
   const fin = () => { if (fired) return; fired = true; chat.speaking = false; clearTimeout(timer); if (done) done(); };
   let clean = softenForSpeech(t);
   if (clean.length > 520) { const cut = clean.slice(0, 520), k = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('? '), cut.lastIndexOf('! ')); clean = k > 100 ? cut.slice(0, k + 1) : cut; }
-  timer = setTimeout(fin, Math.max(3000, clean.length * 110));   // safety net if the browser never fires onend
+  timer = setTimeout(fin, Math.max(5000, clean.length * 110 + 1600));   // safety net if the browser never fires onend
   try {
     if (!('speechSynthesis' in window)) { fin(); return; }
     window.speechSynthesis.cancel();
     chat.speaking = true;
     queue = clean.match(/[^.!?]+[.!?]*\s*/g) || [clean];
-    const voice = pickNovaVoice();
+    let voice = null;
     const next = () => {
       const part = (queue.shift() || '').trim();
       if (!part) { if (queue.length) { next(); return; } fin(); return; }
       const u = new SpeechSynthesisUtterance(part);
       if (voice) { u.voice = voice; u.lang = voice.lang; }
       const q = /\?\s*$/.test(part);
-      u.rate = 0.93; u.pitch = q ? 1.14 : 1.06; u.volume = 1;      // unhurried and gentle, a touch of lift on questions
+      const fem = voice && FEMALE_HINT.test(voice.name || '') && !MALE_HINT.test(voice.name || '');
+      u.rate = fem ? 0.92 : 0.9; u.pitch = (fem ? 1.0 : 1.32) + (q ? 0.08 : 0); u.volume = 1;      // gentle and unhurried; if the device only has a deep voice, lift it so it sounds softer
       u.onend = () => { if (queue.length) setTimeout(next, 140); else fin(); }; u.onerror = fin;
       window.speechSynthesis.speak(u);
     };
-    next();
+    // voices load late on many browsers — wait for them, otherwise the default (male) voice speaks
+    const t0 = Date.now();
+    const go = () => { if (!loadNovaVoices().length && Date.now() - t0 < 1500) { setTimeout(go, 100); return; } voice = pickNovaVoice(); next(); };
+    go();
   } catch (e) { fin(); }
 }
 function afterBot() { if (chat.voiceOn && !chat.recording && !chat.singing && !chat.speaking) setTimeout(startListen, 250); }
@@ -1924,7 +1928,7 @@ async function applyInstrument(key, octave) {
   tasteBump('inst', key, 1);
   chat.pendingInstrument = null;
   const shift = octave ? ' (moved ' + (octave > 0 ? 'up' : 'down') + ' ' + Math.abs(octave) + ' octave' + (Math.abs(octave) > 1 ? 's' : '') + ' to fit)' : '';
-  say('Done — your tune is now on ' + def.label + shift + '. Want a beat under it?', { chips: [
+  say(chat.voiceOn ? 'Done — ' + def.label.toLowerCase() + '.' : 'Done — your tune is now on ' + def.label + shift + '. Want a beat under it?', { chips: [
     { label: '▶ Play it', say: 'play' }, { label: 'Make a beat', say: 'make a beat' },
     { label: 'Which other instruments?', say: 'which instrument suits this' }, { label: 'Build me a full song', say: 'build me a full song' } ] });
 }
@@ -2150,6 +2154,7 @@ async function respond(text) {
   chat.prevMiss = chat.misses; chat.misses = 0;
   const want = r.instrument || r.wantBeat || r.buildSong || r.style;
   const nt = normTxt(text);
+  try { if (await sessionCommand(text, r, nt, chat.typedNow)) return; } catch (e) { console.error(e); }
   if (/(turn|switch|shut) off (the )?(voice|talking|listening)|stop (the )?(voice chat|listening)|end (the )?voice chat|(voice|hands free) mode off/.test(nt)) { setVoice(false); say('Voice chat off — tap 🗣 Voice chat to turn it back on.', { silent: true }); return; }
   r.asSaid = /(as|like|what) i (said|told|asked|mentioned|wanted|requested)|as (said|requested|before|earlier|discussed)|same as (before|earlier|i said)|the way i (said|told|asked)|like (we|i) (said|discussed)/.test(nt);
   r.makeThis = /(make|do|build|create|finish) (this|it|that)( for me| please| now| happen| work| real| then)? $/.test(nt) && !r.instrument && !r.wantBeat && !r.buildSong && !r.mood && !r.genre;
@@ -2311,6 +2316,7 @@ async function respondCore(text, r) {
     const w = chat.wish; chat.wish = {};
     chat.afterSing = { instrument: r.instrument || w.instrument, beat: r.wantBeat || w.beat, style: r.style || w.style };
     const inst = chat.afterSing.instrument;
+    if (chat.voiceOn) { say(r.beatbox ? '🥁 Go ahead — I\'ll stay quiet until you tell me what to do with it.' : '🎤 Go ahead — sing as long as you like. I\'ll stay quiet until you tell me what to do with it.', { silent: true, chips: [] }); chatSing(r.beatbox ? 'beatbox' : 'melody'); return; }
     say(r.beatbox ? "Okay — beatbox into the mic!" + (chat.voiceOn ? " I'll stop when you pause." : " Tap ■ Stop when you're done.")
       : "I'm listening — sing or hum your tune" + (chat.voiceOn ? "; I'll stop when you pause." : ", then tap ■ Stop.") + (inst ? " I'll play it on the " + ALL_INST[inst].label.toLowerCase() + '.' : ''),
       { then: () => chatSing(r.beatbox ? 'beatbox' : 'melody') });
@@ -2411,7 +2417,8 @@ async function askAI(text) {
     return false;
   }
 }
-async function handleText(text, echo) {
+async function handleText(text, echo, typed) {
+  chat.typedNow = !!typed;
   if (echo !== false) userMsg(text);
   if (aiUrl) { const ok = await askAI(text); if (ok) return; }
   return respond(text);
@@ -2641,7 +2648,7 @@ async function liveHandle(audio, sr, armed, forced) {
   const dur = audio.length / sr;
   if (armed && armed.kind === 'beatbox') {                       // beatbox is not pitched: the whole take is the beatbox
     live.armed = null; setChips([]);
-    return liveSung(audio, sr, 'beatbox');
+    return liveSung(audio, sr, 'beatbox', audio);
   }
   let sung = null;
   try {
@@ -2657,9 +2664,84 @@ async function liveHandle(audio, sr, armed, forced) {
   if (!sung) return;                                             // it was just talking: ignore the audio, the words go through speech recognition
   live.armed = null; setChips([]);
   live.lastSungEnd = performance.now();
-  await liveSung(sung, sr, 'melody');
+  await liveSung(sung, sr, 'melody', audio);
 }
-async function liveSung(data, sr, kind) {
+/* ---- session mode: while you sing, Nova stays silent and just keeps what she hears; she acts only when you tell her ---- */
+function pileSeconds() { return chat.pile.reduce((a, it) => a + it.sung.length / it.sr, 0); }
+function pileUI() {
+  if (!chat.pile.length) { chat.pileBubble = null; return; }
+  if (!chat.pileBubble || !chat.pileBubble.isConnected) {
+    const b = document.createElement('div'); b.className = 'msg user'; const l = document.createElement('div'); l.className = 'txt'; b.appendChild(l);
+    chatMsgs.appendChild(b); chat.pileBubble = b;
+  }
+  chat.pileBubble.firstChild.textContent = '🎵 Kept ' + pileSeconds().toFixed(0) + ' s of your singing. Keep going, or tell me what to make it — e.g. “make this guitar”.';
+  scrollChat();
+  setChips([{ label: '🎸 Guitar', say: 'make this guitar' }, { label: '🎹 Piano', say: 'make this piano' }, { label: '🥁 Drums', say: 'make this drums' }, { label: '🎻 Violin', say: 'make this violin' }, { label: 'Bass', say: 'make this bass' }, { label: '🗑 Discard', fn: () => { chat.pile = []; chat.pileBubble && chat.pileBubble.remove(); chat.pileBubble = null; setChips(STARTER()); } }]);
+}
+const BG_RE = /\b(background|backing|behind|under|underneath|layer|softly|quietly)\b/;
+async function processPile(opts) {
+  const items = chat.pile; if (!items.length) return false;
+  chat.pile = []; stopListen();
+  const sr = items[0].sr, drums = opts.kind === 'beatbox' || (!opts.instrument && items.every(it => it.kind === 'beatbox'));
+  const gap = new Float32Array(Math.round(sr * 0.6)), parts = [];
+  items.forEach((it, i) => { if (i) parts.push(gap); parts.push(drums ? it.raw : it.sung); });
+  const data = concatF32(parts);
+  let bubble = chat.pileBubble; chat.pileBubble = null;
+  if (!bubble || !bubble.isConnected) { bubble = document.createElement('div'); bubble.className = 'msg user'; chatMsgs.appendChild(bubble); }
+  setChips([]);
+  chat.afterSing = { instrument: drums ? null : opts.instrument, beat: false, style: null };
+  const before = tracks.length;
+  chat.singing = true;
+  await processChatRecording(drums ? 'beatbox' : 'melody', data, sr, bubble);
+  const sec = chat.section; chat.section = null;
+  tracks.slice(before).forEach(t => {
+    if (sec) { t.startBar = sec.startBar; if (t.type === 'drums') t.endBar = sec.startBar + sec.bars; }
+    if (opts.bg) t.volume = Math.max(0.2, t.volume * 0.7);
+  });
+  if (sec || opts.bg) { growBarsToFit(); rebuildAllParts(); applyMix(); renderTracks(); }
+  return true;
+}
+function addTime(nt) {
+  const m = nt.match(/\b(a|an|one|two|three|four|five|ten|\d+)?\s*(?:more|extra|another|additional)?\s*(minutes?|mins?|bars?|sections?|parts?)\b/);
+  const W = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, ten: 10 };
+  const n = m && m[1] ? (W[m[1]] || parseInt(m[1], 10) || 1) : 1, unit = m ? m[2] : 'section';
+  let bars = /^min/.test(unit) ? Math.ceil(n * 60 / (4 * spb())) : /^bar/.test(unit) ? n : 8;
+  const start = S.bars; bars = Math.max(1, Math.min(64 - start, bars));
+  if (bars < 1) { say("The song is already at the longest length I can handle (64 bars).", { silent: true }); return; }
+  S.bars = start + bars; $('#bars').value = S.bars;
+  chat.section = { startBar: start, bars };
+  rebuildAllParts(); renderTracks();
+  say('Done — added ' + bars + ' bars. Sing or beatbox the next part, then tell me what it is.', { chips: [] });
+}
+/* returns true if the session logic fully handled this sentence */
+async function sessionCommand(text, r, nt, typed) {
+  if (!chat.voiceOn) return false;
+  const isMore = /\b(add|another|extend|extra|give me|need|want|more)\b.*\b(minutes?|mins?|bars?|sections?|parts?)\b|\b(next|new) (part|section)\b|\bcontinue (the )?(song|music|same)\b/.test(nt) && !/(bpm|beats? per)/.test(nt);
+  if (isMore) { addTime(nt); return true; }
+  const bg = BG_RE.test(nt);
+  const toDrums = /\b(make|turn|change|play|use|convert|put|do)\b.*\b(this|that|it|my)\b.*\b(drums?|beats?|percussion|beatbox)\b|^(the )?(drums?|beatbox|percussion)$/.test(nt) && !r.style;
+  if (chat.pile.length) {
+    if (toDrums) { await processPile({ kind: 'beatbox', bg }); return true; }
+    if (r.instrument) { await processPile({ kind: 'melody', instrument: r.instrument, bg }); return true; }
+    if (/^(ok(ay)? )?(that'?s (it|all)|done|finished|i'?m done|stop)\b/.test(nt)) { await processPile({ kind: 'melody' }); return true; }
+  } else if (r.instrument && chat.take && bg) {
+    const before = tracks.length;
+    await applyInstrument(r.instrument);
+    tracks.slice(before).forEach(t => { t.volume = Math.max(0.2, t.volume * 0.7); });
+    applyMix(); renderTracks(); return true;
+  }
+  // while you are singing (or just did) a sentence that is not a clear order is probably your lyrics — stay quiet
+  const recent = live.state === 'sing' || performance.now() - live.lastSungEnd < 20000 || chat.pile.length;
+  const command = Object.keys(r).some(k => k !== 'text' && r[k] && !(Array.isArray(r[k]) && !r[k].length)) || /\b(make|play|add|undo|delete|remove|stop|start|louder|quieter|faster|slower|export|save)\b/.test(nt);
+  if (!typed && recent && !command) return true;
+  return false;
+}
+async function liveSung(data, sr, kind, raw) {
+  const wishy = chat.afterSing && (chat.afterSing.instrument || chat.afterSing.beat || chat.afterSing.jam || chat.afterSing.jamStart);
+  const wishy2 = chat.wish && (chat.wish.instrument || chat.wish.beat || chat.wish.style) || chat.pendingInstrument;
+  if (chat.voiceOn && kind === 'melody' && !wishy && !wishy2 || chat.voiceOn && kind === 'beatbox' && !wishy) {
+    chat.pile.push({ sung: data, raw: raw || data, sr, kind }); pileUI(); return;
+  }
   stopListen();
   const bubble = document.createElement('div'); bubble.className = 'msg user';
   const l = document.createElement('div'); l.className = 'txt'; l.textContent = (kind === 'beatbox' ? '🥁 Heard your beatbox… ' : '🎵 I heard you singing — ' + (data.length / sr).toFixed(1) + ' s of it. Working on it…'); bubble.appendChild(l);
@@ -2751,7 +2833,7 @@ $('#novaHear').addEventListener('click', () => { fillVoiceSelect(); speakText("H
 fillVoiceSelect(); setTimeout(fillVoiceSelect, 600);
 $('#chatSpeak').addEventListener('change', e => { chat.speak = e.target.checked; if (!chat.speak) { try { window.speechSynthesis.cancel(); } catch (x) {} } });
 $('#chatSing').addEventListener('click', () => chatSing('melody'));
-function sendTyped() { const el = $('#chatText'), t = (el.value || '').trim(); if (!t) return; el.value = ''; handleText(t, true); }
+function sendTyped() { const el = $('#chatText'), t = (el.value || '').trim(); if (!t) return; el.value = ''; handleText(t, true, true); }
 $('#chatSend').addEventListener('click', sendTyped);
 $('#chatText').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); sendTyped(); } });
 
