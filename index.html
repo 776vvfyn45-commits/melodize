@@ -1111,6 +1111,15 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 /* Raw sample capture (no MediaRecorder): exact audio, no codec smearing, same on iPhone/Android/desktop */
 let recCap = null, recMeta = { playAlong: false, countIn: false };
 let capCtx = null;      // a plain browser AudioContext just for capture (Tone's wrapper context has no ScriptProcessor / worklet nodes)
+/* one permission prompt per visit: the mic is opened once and every feature borrows a clone of it */
+let micMaster = null;
+async function getMic() {
+  if (!micMaster || !micMaster.getAudioTracks().some(t => t.readyState === 'live')) {
+    micMaster = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+  }
+  return micMaster.clone();
+}
+function releaseMic() { try { micMaster && micMaster.getTracks().forEach(t => t.stop()); } catch (e) {} micMaster = null; }
 function getCapCtx() {
   if (!capCtx || capCtx.state === 'closed') { const AC = window.AudioContext || window.webkitAudioContext; capCtx = new AC(); }
   try { if (capCtx.state === 'suspended') capCtx.resume(); } catch (e) {}
@@ -1155,9 +1164,7 @@ async function startRecording() {
   await Tone.start();
   try {
     // Browser "voice call" processing wrecks pitch accuracy, so everything is switched OFF here.
-    recStream = await navigator.mediaDevices.getUserMedia({ audio: {
-      echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1
-    }});
+    recStream = await getMic();
   } catch (e) {
     alert('Microphone access was blocked or unavailable. Please allow microphone permission and try again.');
     return;
@@ -1895,7 +1902,13 @@ async function addVoiceFromTake(quiet) {
   await addAudioTrack(chat.take.audio, chat.take.sr, { startBar: 0 });
   if (!quiet) say('Done — your real voice is now a track, lined up with the notes. Use headphones, and try Auto-mix to balance it with everything else.', { chips: [{ label: '▶ Play', say: 'play' }, { label: 'Auto-mix', say: 'mix it' }, { label: 'Make a beat', say: 'make a beat' }] });
 }
-function recommendReply(intro) {
+function recommendReply(intro, full) {
+  if (!full) {
+    const n = chat.take.secNotes.length, secs = Math.max(1, Math.round(chat.take.secNotes[n - 1].start + chat.take.secNotes[n - 1].dur));
+    say(pick(['Ooh, I like that! ', 'That was lovely. ', 'Nice one! ', 'Got it, that sounds good. ']) + 'I caught ' + n + ' notes, about ' + secs + ' seconds' + (chat.take.key ? ', in ' + chat.take.key : '') + '. What would you like to make of it? Tell me the instrument and where it should play — like “guitar as the bass from the beginning to the end”, or “piano on top”. If you want ideas, just ask me.',
+      { chips: [{ label: '🎸 Guitar', say: 'put it on guitar' }, { label: '🎹 Piano', say: 'put it on piano' }, { label: 'Bass, whole song', say: 'make it bass from the beginning to the end of the song' }, { label: '🥁 Drums', say: 'make this drums' }, { label: '💡 Give me ideas', say: 'which instrument suits this' }] });
+    return;
+  }
   const ranked = DSP.recommendInstruments(chat.take.secNotes, { mood: chat.mood, genre: chat.genre, taste: tasteCtx() }).slice(0, 3);
   const f = DSP.melodyFeatures(chat.take.secNotes);
   const ctxTxt = (chat.mood || chat.genre) ? ' for a ' + [chat.mood, chat.genre].filter(Boolean).join(' / ') + ' feel' : '';
@@ -2116,7 +2129,8 @@ async function composeScene(recipe, text) {
 }
 
 function clearAllTracks() {
-  stopPlayback(); tracks.slice().forEach(t => removeTrack(t.id, true)); chat.take = null; chat.jam = null;
+  stopPlayback(); tracks.slice().forEach(t => removeTrack(t.id, true)); chat.take = null; chat.jam = null; chat.pile = [];
+  try { const l = libRead(); delete l.__auto; libWrite(l); } catch (e) {}
   say('All clear — fresh start. Sing me something!', { chips: STARTER() });
 }
 
@@ -2330,7 +2344,7 @@ async function respondCore(text, r) {
   }
   if (r.recommend && !r.instrument) {
     if (!chat.take) { say("Sing or hum me a short tune first (5–15 seconds) and I'll tell you which instrument suits it.", { chips: [{ label: '🎤 Sing now', fn: () => chatSing('melody') }] }); return; }
-    recommendReply('Let me re-check. '); return;
+    recommendReply('Let me re-check. ', true); return;
   }
   if (r.instrument) { await applyInstrument(r.instrument); return; }
   if (r.fill || r.variation) {
@@ -2442,7 +2456,11 @@ refreshAiBtn();
 
 /* ----- singing / beatboxing inside the chat ----- */
 async function chatSing(kind) {
-  if (live.on) { liveArm(kind); return; }
+  if (!live.on && SpeechRec && !chat.recording && !recCap) {       // the 🎤 button now opens the same hands-free session: I can tell talking from singing
+    try { setVoice(true); } catch (e) {}
+    for (let i = 0; i < 40 && !live.on; i++) await new Promise(r => setTimeout(r, 100));
+  }
+  if (live.on) { liveArm(kind); if (chat.voiceOn) say(kind === 'beatbox' ? '🥁 Go ahead and beatbox — I\'m listening.' : '🎤 I\'m listening — sing or hum as much as you like, then just tell me what you\'d like to make.', { silent: true, chips: [] }); return; }
   if (chat.recording) { finishChatRecording(); return; }
   if (recCap) { say('The studio recorder is running — stop it first.'); return; }
   if (chat.singing) return;
@@ -2451,7 +2469,7 @@ async function chatSing(kind) {
   await Tone.start();
   let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+    stream = await getMic();
   } catch (e) { chat.singing = false; chat.voiceOn && setVoice(false); say('I can\'t reach the microphone — please allow it for this site and try again.'); return; }
   const bubble = document.createElement('div'); bubble.className = 'msg user';
   const lbl = document.createElement('div'); lbl.className = 'txt'; lbl.textContent = (kind === 'beatbox' ? '🥁 Beatboxing… ' : '🎤 Listening… ') + (chat.voiceOn ? "I'll stop when you pause" : 'tap ■ Stop when done'); bubble.appendChild(lbl);
@@ -2584,7 +2602,7 @@ async function startLive() {
   if (live.on) return true;
   getCapCtx(); try { await Tone.start(); } catch (e) {}
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } }); }
+  try { stream = await getMic(); }
   catch (e) { return false; }
   try { live.cap = await openPcmStream(stream, liveBlock); } catch (e) { stream.getTracks().forEach(t => t.stop()); return false; }
   live.stream = stream; live.sr = live.cap.sr; live.on = true; live.ring = []; live.ringLen = 0; live.utt = null; live.quiet = 0; live.armed = null;
@@ -2676,12 +2694,20 @@ function pileUI() {
   }
   chat.pileBubble.firstChild.textContent = '🎵 Kept ' + pileSeconds().toFixed(0) + ' s of your singing. Keep going, or tell me what to make it — e.g. “make this guitar”.';
   scrollChat();
+  clearTimeout(chat.askTimer);
+  chat.askTimer = setTimeout(function ask() {
+    if (!chat.pile.length || chat.speaking) return;
+    if (live.utt || live.state === 'sing') { chat.askTimer = setTimeout(ask, 2500); return; }
+    if (chat.askedAt === chat.pile.length) return; chat.askedAt = chat.pile.length;
+    say(pick(['That sounded great! ', 'I love it. ', 'Nice, I kept all of that. ']) + 'What would you like me to make of it? For example “make this guitar”, or “make this the bass from the beginning to the end”.', { chips: null });
+    pileUI();
+  }, 6500);
   setChips([{ label: '🎸 Guitar', say: 'make this guitar' }, { label: '🎹 Piano', say: 'make this piano' }, { label: '🥁 Drums', say: 'make this drums' }, { label: '🎻 Violin', say: 'make this violin' }, { label: 'Bass', say: 'make this bass' }, { label: '🗑 Discard', fn: () => { chat.pile = []; chat.pileBubble && chat.pileBubble.remove(); chat.pileBubble = null; setChips(STARTER()); } }]);
 }
 const BG_RE = /\b(background|backing|behind|under|underneath|layer|softly|quietly)\b/;
 async function processPile(opts) {
   const items = chat.pile; if (!items.length) return false;
-  chat.pile = []; stopListen();
+  chat.pile = []; chat.askedAt = 0; clearTimeout(chat.askTimer); stopListen();
   const sr = items[0].sr, drums = opts.kind === 'beatbox' || (!opts.instrument && items.every(it => it.kind === 'beatbox'));
   const gap = new Float32Array(Math.round(sr * 0.6)), parts = [];
   items.forEach((it, i) => { if (i) parts.push(gap); parts.push(drums ? it.raw : it.sung); });
@@ -2697,8 +2723,9 @@ async function processPile(opts) {
   tracks.slice(before).forEach(t => {
     if (sec) { t.startBar = sec.startBar; if (t.type === 'drums') t.endBar = sec.startBar + sec.bars; }
     if (opts.bg) t.volume = Math.max(0.2, t.volume * 0.7);
+    if (opts.span && t.type === 'melody' && !sec) { t.repeat = true; t.startBar = 0; t.endBar = 0; }
   });
-  if (sec || opts.bg) { growBarsToFit(); rebuildAllParts(); applyMix(); renderTracks(); }
+  if (sec || opts.bg || opts.span) { growBarsToFit(); rebuildAllParts(); applyMix(); renderTracks(); }
   return true;
 }
 function addTime(nt) {
@@ -2715,20 +2742,24 @@ function addTime(nt) {
 }
 /* returns true if the session logic fully handled this sentence */
 async function sessionCommand(text, r, nt, typed) {
+  if (/\b(can|could) you (hear|see) me\b|\bare you (there|listening|with me)\b|\bdo you hear me\b|\btesting\b/.test(nt) && !r.instrument) {
+    say(pick(["Yes, I can hear you loud and clear! 😊 Sing or hum whenever you're ready — I'll stay quiet until you tell me what to make of it.", "I'm right here and I can hear you nicely. Go ahead and sing, I'm all ears."]), { chips: [] }); return true;
+  }
   if (!chat.voiceOn) return false;
+  const span = /(from )?(the )?(beginning|start)\b.*\b(till|until|to|through|up to)\b.*\b(end|finish)|whole song|entire song|full song|throughout|all the way|from start to (end|finish)/.test(nt);
   const isMore = /\b(add|another|extend|extra|give me|need|want|more)\b.*\b(minutes?|mins?|bars?|sections?|parts?)\b|\b(next|new) (part|section)\b|\bcontinue (the )?(song|music|same)\b/.test(nt) && !/(bpm|beats? per)/.test(nt);
   if (isMore) { addTime(nt); return true; }
   const bg = BG_RE.test(nt);
   const toDrums = /\b(make|turn|change|play|use|convert|put|do)\b.*\b(this|that|it|my)\b.*\b(drums?|beats?|percussion|beatbox)\b|^(the )?(drums?|beatbox|percussion)$/.test(nt) && !r.style;
   if (chat.pile.length) {
-    if (toDrums) { await processPile({ kind: 'beatbox', bg }); return true; }
-    if (r.instrument) { await processPile({ kind: 'melody', instrument: r.instrument, bg }); return true; }
+    if (toDrums) { await processPile({ kind: 'beatbox', bg, span }); return true; }
+    if (r.instrument) { await processPile({ kind: 'melody', instrument: r.instrument, bg, span }); return true; }
     if (/^(ok(ay)? )?(that'?s (it|all)|done|finished|i'?m done|stop)\b/.test(nt)) { await processPile({ kind: 'melody' }); return true; }
-  } else if (r.instrument && chat.take && bg) {
+  } else if (r.instrument && chat.take && (bg || span)) {
     const before = tracks.length;
     await applyInstrument(r.instrument);
-    tracks.slice(before).forEach(t => { t.volume = Math.max(0.2, t.volume * 0.7); });
-    applyMix(); renderTracks(); return true;
+    tracks.slice(before).forEach(t => { if (bg) t.volume = Math.max(0.2, t.volume * 0.7); if (span && t.type === 'melody') { t.repeat = true; t.startBar = 0; t.endBar = 0; } });
+    growBarsToFit(); rebuildAllParts(); applyMix(); renderTracks(); return true;
   }
   // while you are singing (or just did) a sentence that is not a clear order is probably your lyrics — stay quiet
   const recent = live.state === 'sing' || performance.now() - live.lastSungEnd < 20000 || chat.pile.length;
@@ -2787,14 +2818,16 @@ function startListen() {
     say("I didn't catch that — tap 🎙 and try again.");
   };
   listening = true; $('#chatTalk').classList.add('live');
+  const myRec = speechRec; setTimeout(() => { if (listening && speechRec === myRec && !$('#chatText').value) { try { myRec.abort(); } catch (e) {} } }, 15000);   // watchdog: never stay stuck "listening"
   try { speechRec.start(); } catch (e) { listening = false; $('#chatTalk').classList.remove('live'); }
 }
 function stopListen() { try { if (speechRec && listening) { speechRec.onend = null; speechRec.stop(); } } catch (e) {} listening = false; $('#chatTalk').classList.remove('live'); }
 $('#chatTalk').addEventListener('click', () => {
+  if (!chat.recording) chat.singing = false;                                  // never let a stuck flag block the mic button
   if (!SpeechRec) { say("Voice typing isn't supported in this browser — try Chrome, Edge or Safari, or just type. You can still tap 🎤 to sing to me!"); return; }
-  if (listening) { try { speechRec.stop(); } catch (e) {} return; }
+  if (listening) { try { speechRec.stop(); } catch (e) {} setTimeout(() => { if (listening) { try { speechRec.abort(); } catch (e) {} listening = false; $('#chatTalk').classList.remove('live'); } }, 900); return; }
   try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
-  chat.speaking = false; startListen();
+  chat.speaking = false; listening = false; startListen();
 });
 function setVoice(on) {
   chat.voiceOn = !!on;
@@ -3525,6 +3558,7 @@ function libSave(auto) {
   if (!tracks.length) { if (!auto) alert('Add a track first.'); return; }
   const data = projectData(), lib = libRead(), id = auto ? '__auto' : (data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'untitled');
   lib[id] = { name: auto ? 'Autosave — ' + data.name : data.name, saved: Date.now(), tracks: tracks.length, bars: S.bars, bpm: S.bpm, data };
+  if (!libWrite(lib) && auto) { lib[id].data.tracks = lib[id].data.tracks.filter(t => t.type !== 'audio'); if (libWrite(lib)) return; }
   if (!libWrite(lib)) { if (!auto) alert('This browser has no room left for projects. Use "Save project" to download the file instead.'); return; }
   if (!auto) { libRender(); $('#libInfo').textContent = 'Saved “' + data.name + '” in this browser'; }
 }
@@ -3547,6 +3581,35 @@ $('#libSave').addEventListener('click', () => libSave(false));
 $('#libToggle').addEventListener('click', () => { const b = $('#libBox'); b.style.display = b.style.display === 'none' ? 'block' : 'none'; if (b.style.display !== 'none') libRender(); });
 setInterval(() => { if (tracks.length) libSave(true); }, 30000);
 window.addEventListener('beforeunload', () => { if (tracks.length) libSave(true); });
+/* phones never fire beforeunload: save whenever the app is hidden, and go completely quiet in the background */
+function goQuiet() {
+  try { if (tracks.length) libSave(true); } catch (e) {}
+  try { if (Tone.Transport.state === 'started') stopPlayback(); } catch (e) {}
+  try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch (e) {}
+  chat.speaking = false;
+  try { if (chat.recording) finishChatRecording(); } catch (e) {}
+  try { if (recCap) stopRecording(); } catch (e) {}
+  try { if (chat.voiceOn) setVoice(false); else { stopListen(); stopLive(); } } catch (e) {}
+  releaseMic();
+  try { const c = Tone.context.rawContext; if (c && c.state === 'running') c.suspend(); } catch (e) {}
+  try { if (typeof getCapCtx === 'function') { const c2 = getCapCtx(); if (c2 && c2.state === 'running') c2.suspend(); } } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) goQuiet();
+  else { try { const c = Tone.context.rawContext; if (c.state === 'suspended') c.resume(); } catch (e) {} try { const c2 = getCapCtx(); if (c2.state === 'suspended') c2.resume(); } catch (e) {} }
+});
+window.addEventListener('pagehide', goQuiet);
+/* bring back the song you were working on if the phone closed the app in the background */
+setTimeout(async () => {
+  if (tracks.length) return;
+  try {
+    const a = libRead().__auto;
+    if (a && a.data && a.data.tracks && a.data.tracks.length) {
+      setStatus('restoring your song…', 'busy'); await loadProjectData(a.data); setStatus('ready', 'ready');
+      const li = $('#libInfo'); if (li) li.textContent = 'Welcome back — I restored your last song (' + a.tracks + ' tracks).';
+    }
+  } catch (e) { console.error(e); setStatus('ready', 'ready'); }
+}, 700);
 
 /* =====================================================================
    9. BOOT  (+ PWA)
