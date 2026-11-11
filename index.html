@@ -262,6 +262,63 @@
   input[type=text]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:7px 9px;font-family:inherit;font-size:.82rem}
   .takebar{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(45,212,191,.05)}
   .takehint{font-size:.8rem;color:var(--text);line-height:1.5;margin-bottom:8px}
+
+  /* ===== quick song maker: hum -> instrument -> feel -> song ===== */
+  .quick{padding:22px 22px 24px;border-color:rgba(45,212,191,.25)}
+  .quick > h2{font-size:1.35rem;margin-bottom:2px}
+  .quick > .lead{color:var(--sub);font-size:.88rem;margin-bottom:18px;line-height:1.5}
+  .q-step{display:flex;gap:14px;padding:16px 0;border-top:1px solid var(--line)}
+  .q-num{flex:0 0 30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:.9rem;background:var(--panel2);border:1px solid var(--line);color:var(--sub)}
+  .q-step.done .q-num{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#062027;border:none}
+  .q-body{flex:1;min-width:0}
+  .q-body h3{font-size:1rem;font-weight:600;margin:4px 0 4px}
+  .q-body .hint{font-size:.8rem;color:var(--sub);margin-bottom:12px;line-height:1.5}
+  .q-rec{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .q-mic{width:84px;height:84px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#062027;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 10px 28px rgba(45,212,191,.35);transition:.15s;flex:0 0 auto}
+  .q-mic svg{width:36px;height:36px}
+  .q-mic:hover{transform:scale(1.04)}
+  .q-mic.live{background:linear-gradient(135deg,#f87171,#fb923c);box-shadow:0 0 0 0 rgba(248,113,113,.6);animation:qpulse 1.3s infinite}
+  .q-mic:disabled{opacity:.5;cursor:wait;transform:none}
+  @keyframes qpulse{0%{box-shadow:0 0 0 0 rgba(248,113,113,.55)}70%{box-shadow:0 0 0 18px rgba(248,113,113,0)}100%{box-shadow:0 0 0 0 rgba(248,113,113,0)}}
+  .q-rec-txt b{display:block;font-size:.98rem}
+  .q-rec-txt small{color:var(--sub);font-size:.78rem}
+  #qMeter{flex:1;min-width:120px;max-width:320px;height:34px;border-radius:9px;background:#0a0b12}
+  .q-heard{margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(45,212,191,.07);border:1px solid rgba(45,212,191,.25);font-size:.84rem;line-height:1.5;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .q-heard canvas{width:150px;height:36px;border-radius:7px;background:#0a0b12;flex:0 0 auto}
+  .q-heard .msg{flex:1;min-width:160px}
+  .q-heard.bad{background:rgba(248,113,113,.07);border-color:rgba(248,113,113,.3)}
+  .q-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:9px}
+  .q-card{background:var(--panel2);border:1.5px solid var(--line);border-radius:14px;padding:12px 6px 10px;text-align:center;cursor:pointer;transition:.15s;user-select:none;color:var(--text);font-family:inherit}
+  .q-card svg{width:26px;height:26px;color:var(--accent);display:block;margin:0 auto 6px}
+  .q-card .nm{font-size:.78rem;font-weight:600;display:block}
+  .q-card .ds{font-size:.68rem;color:var(--sub);display:block;margin-top:2px}
+  .q-card:hover{border-color:rgba(45,212,191,.45)}
+  .q-card.on{border-color:var(--accent);background:rgba(45,212,191,.14);box-shadow:0 0 0 1px rgba(45,212,191,.4) inset}
+  .q-card.auto svg{color:var(--warn)}
+  .q-more{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .q-more input{flex:1;min-width:180px}
+  .q-feels{display:flex;gap:8px;flex-wrap:wrap}
+  .q-feel{padding:10px 15px;border-radius:30px;border:1.5px solid var(--line);background:var(--panel2);color:var(--text);font-family:inherit;font-size:.84rem;font-weight:600;cursor:pointer}
+  .q-feel small{display:block;font-weight:400;color:var(--sub);font-size:.68rem}
+  .q-feel.on{border-color:var(--accent);background:rgba(45,212,191,.14)}
+  .q-go{margin-top:6px;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .q-go .btn.primary{font-size:1rem;padding:14px 26px;color:#062027}
+  .q-go .why{font-size:.8rem;color:var(--sub)}
+  .q-result{margin-top:16px;padding:16px;border-radius:14px;border:1px solid rgba(45,212,191,.35);background:linear-gradient(180deg,rgba(45,212,191,.09),rgba(56,189,248,.04))}
+  .q-result h3{font-size:1.05rem;margin-bottom:4px}
+  .q-result .info{font-size:.82rem;color:var(--sub);line-height:1.55;margin-bottom:12px}
+  .q-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .q-row .lbl{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);min-width:62px}
+  .studio-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:6px 0 18px;font-size:.82rem;color:var(--sub)}
+  @media (max-width:560px){
+    .wrap{padding:18px 12px 70px}
+    .quick{padding:16px 14px 18px}
+    .q-step{gap:10px}
+    .q-grid{grid-template-columns:repeat(3,1fr)}
+    .q-mic{width:74px;height:74px}
+    .q-go .btn.primary{width:100%;justify-content:center}
+  }
 </style>
 </head>
 <body>
@@ -269,8 +326,8 @@
 <div class="gate" id="gate">
   <div class="card">
     <h1>Melodize</h1>
-    <p>Hum, sing or beatbox — Melodize turns your voice into piano, guitar, strings, synths, EDM leads and full drum tracks. Layer them, mix, master and export a complete song. Needs microphone access. Use headphones when layering.</p>
-    <button class="btn primary" id="enterBtn">Enable audio &amp; start</button>
+    <p>Hum the tune in your head, pick an instrument, and Melodize turns it into a finished song — no music knowledge needed. It will ask to use your microphone.</p>
+    <button class="btn primary" id="enterBtn">Let's start</button>
   </div>
 </div>
 
@@ -347,6 +404,88 @@
     </div>
   </header>
 
+  <!-- QUICK SONG MAKER -->
+  <section class="panel quick" id="quickPanel">
+    <h2>Make a song from your voice</h2>
+    <div class="lead">Three easy steps. You don't need to know any music — just hum the tune that's in your head and Melodize does the rest: the right notes, chords, bass, drums and a polished sound.</div>
+
+    <div class="q-step" id="qStep1">
+      <div class="q-num">1</div>
+      <div class="q-body">
+        <h3>Hum or sing your tune</h3>
+        <div class="hint">"La la la", "dum dum", humming or whistling all work. It doesn't need to be perfect — Melodize fixes the tuning and timing.</div>
+        <div class="q-rec">
+          <button class="q-mic" id="qRec" aria-label="Start recording"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></button>
+          <div class="q-rec-txt"><b id="qRecLabel">Tap to start</b><small id="qRecSub">Tap again when you're done</small></div>
+          <canvas id="qMeter" width="320" height="34"></canvas>
+        </div>
+        <div class="q-heard" id="qHeard" style="display:none"></div>
+      </div>
+    </div>
+
+    <div class="q-step" id="qStep2">
+      <div class="q-num">2</div>
+      <div class="q-body">
+        <h3>Which instrument should play it?</h3>
+        <div class="hint">Tap one to hear your tune on it. Not sure? Pick "Choose for me".</div>
+        <div class="q-grid" id="qInst"></div>
+        <div class="q-more">
+          <input type="text" id="qInstText" placeholder="Or type one, e.g. violin, keyboard, sax…" autocomplete="off">
+          <button class="btn small ghost" id="qInstMore">More instruments</button>
+        </div>
+        <div class="q-grid" id="qInstAll" style="display:none;margin-top:10px"></div>
+      </div>
+    </div>
+
+    <div class="q-step" id="qStep3">
+      <div class="q-num">3</div>
+      <div class="q-body">
+        <h3>How should it feel?</h3>
+        <div class="hint">This picks the chords, bass, drums and sound for you.</div>
+        <div class="q-feels" id="qFeels"></div>
+        <div class="q-more"><input type="text" id="qFeelText" placeholder="Or describe it in your own words, e.g. rainy night drive" autocomplete="off"></div>
+      </div>
+    </div>
+
+    <div class="q-go">
+      <button class="btn primary" id="qMake" disabled>✦ Make my song</button>
+      <span class="why" id="qWhy">Start by humming your tune in step 1.</span>
+    </div>
+
+    <div class="q-result" id="qResult" style="display:none">
+      <h3>Your song is ready</h3>
+      <div class="info" id="qResInfo"></div>
+      <div class="q-row">
+        <button class="btn primary small" id="qPlay">▶ Play</button>
+        <button class="btn small" id="qStop">■ Stop</button>
+        <button class="btn small ghost" id="qUndo" title="Go back one change">↶ Undo</button>
+        <button class="btn small ghost" id="qRedo" title="Redo">↷ Redo</button>
+      </div>
+      <div class="q-row"><span class="lbl">Tune</span>
+        <button class="btn small ghost" id="qHigher">Higher</button>
+        <button class="btn small ghost" id="qLower">Lower</button>
+        <button class="btn small ghost" id="qFix" title="Open the note editor to fix a single wrong note">Fix a wrong note</button>
+      </div>
+      <div class="q-row"><span class="lbl">Speed</span>
+        <button class="btn small ghost" id="qSlower">Slower</button>
+        <button class="btn small ghost" id="qFaster">Faster</button>
+        <span class="mini" id="qBpm"></span>
+      </div>
+      <div class="q-row"><span class="lbl">Keep it</span>
+        <button class="btn small" id="qWav">Download song (.wav)</button>
+        <button class="btn small ghost" id="qKeep">Save in My projects</button>
+        <button class="btn small ghost" id="qNew">Start a new song</button>
+      </div>
+      <div class="hint" style="margin:6px 0 0">Change the instrument or the feel above any time — your song updates straight away. Want more control? Open the <a href="#" id="qOpenStudio" style="color:var(--accent)">full studio</a>.</div>
+    </div>
+  </section>
+
+  <div class="studio-bar">
+    <span>Want to add more layers, beatbox drums or fine-tune the mix?</span>
+    <button class="btn small ghost" id="studioToggle">Show full studio ▾</button>
+  </div>
+
+  <div id="studioWrap" style="display:none">
   <!-- PROJECT -->
   <section class="panel">
     <h2>Project</h2>
@@ -532,6 +671,7 @@
     <div id="trackList"></div>
     <div class="empty" id="emptyState"><div class="big"><svg class="i big-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg></div>No tracks yet — add a drum pattern or record your first hum above.</div>
   </section>
+  </div><!-- /studioWrap -->
 
   <footer>
     Everything runs locally in your browser — your voice is never uploaded.<br>
@@ -548,6 +688,13 @@
 (function(){
 "use strict";
 const DSP = window.MelodizeDSP;
+/* Tone.js guard: if a synth is removed while a note-off is still waiting, Tone throws inside its shared timer queue.
+   That event never leaves the queue, so it throws ~16 times a second forever and blocks every later note-off (stuck notes).
+   A removed synth now simply ignores late events. */
+try {
+  const PS = Tone.PolySynth.prototype, se = PS._scheduleEvent;
+  if (typeof se === 'function') PS._scheduleEvent = function () { if (this.disposed) return this; return se.apply(this, arguments); };
+} catch (e) {}
 
 /* =====================================================================
    1. INSTRUMENT LIBRARY
@@ -905,7 +1052,10 @@ function autoArrange() {
   tracks.forEach(t => {
     if (t.type === 'audio') return;
     t.endBar = 0; t.repeat = t.type === 'melody';
-    t.startBar = (hasLead && (t.type === 'drums' || BASSY.indexOf(t.instKey) !== -1)) ? 4 : 0;   // 4-bar intro: lead on its own, then drums + bass drop in
+    const late = hasLead && (t.type === 'drums' || BASSY.indexOf(t.instKey) !== -1);   // 4-bar intro: lead on its own, then drums + bass drop in
+    // drums can simply start later; a bass line must stay lined up with the chords, so it keeps its place and only stays silent during the intro
+    if (t.type === 'drums') { t.startBar = late ? 4 : 0; t.enterBar = 0; }
+    else { t.startBar = 0; t.enterBar = late ? 4 : 0; }
   });
   rebuildAllParts(); renderTracks(); updateLoop();
   return true;
@@ -933,8 +1083,9 @@ function melodyEvents(t) {
   const sb = (t.startBar || 0) * 4, eb = t.endBar ? t.endBar * 4 : S.bars * 4, L = clipBars(t) * 4, out = [];
   const bounded = !!(t.repeat || t.endBar);
   const reps = t.repeat ? Math.max(1, Math.ceil((eb - sb) / L)) : 1;
+  const enter = (t.enterBar || 0) * 4;   // silent until this beat (keeps the part lined up with the others)
   for (let r = 0; r < reps; r++) t.notes.forEach(n => {
-    const st = sb + r * L + n.startB; if (bounded && st >= eb) return;
+    const st = sb + r * L + n.startB; if (bounded && st >= eb) return; if (st < enter) return;
     out.push(Object.assign({}, n, { startB: st, durB: bounded ? Math.min(n.durB, eb - st) : n.durB }));
   });
   return out;
@@ -1370,6 +1521,7 @@ async function addMelodyTrack(instKey, notes, saved) {
   growBarsToFit();
   rebuildAllParts(); applyMix(); renderTracks();
   setStatus('ready', 'ready');
+  return t;
 }
 async function addDrumTrack(pattern, kitKey, saved) {
   const t = newTrackBase('drums');
@@ -3433,7 +3585,7 @@ function trimTail(chans, sr) {
 async function doExport(withStems) {
   if (!tracks.length) { alert('Add at least one track before exporting.'); return; }
   tasteReward();
-  const btn = withStems ? $('#stemsBtn') : $('#exportBtn'), original = btn.textContent, other = withStems ? $('#exportBtn') : $('#stemsBtn');
+  const btn = withStems ? $('#stemsBtn') : $('#exportBtn'), original = btn.innerHTML, other = withStems ? $('#exportBtn') : $('#stemsBtn');
   btn.disabled = true; other.disabled = true;
   try {
     const { mix, stems } = await renderSong(withStems, p => { btn.textContent = '⏺ Rendering ' + Math.round(p * 100) + '%'; $('#progFill').style.width = (p * 100) + '%'; });
@@ -3458,11 +3610,11 @@ async function doExport(withStems) {
     if (!withStems) { try { await legacyExport(); } catch (e2) { alert('Export failed: ' + (e2 && e2.message || e2)); } }
     else alert('Stem export is not supported on this browser (' + (e && e.message || e) + '). The normal WAV export still works.');
   }
-  btn.textContent = original; btn.disabled = false; other.disabled = false; $('#progFill').style.width = '0%';
+  btn.innerHTML = original; btn.disabled = false; other.disabled = false; $('#progFill').style.width = '0%';
 }
 async function legacyExport() {            // old way (real-time recorder): only used if the lossless capture is unavailable
   await Tone.start(); stopPlayback();
-  const btn = $('#exportBtn'), original = btn.textContent;
+  const btn = $('#exportBtn'), original = btn.innerHTML;
   btn.textContent = '⏺ Rendering…'; btn.disabled = true;
   const wasLoop = $('#loopChk').checked; $('#loopChk').checked = false; updateLoop();
   recorder.start();
@@ -3477,7 +3629,7 @@ async function legacyExport() {            // old way (real-time recorder): only
     DSP.normalizeLoudness(chans, -16, -1);
     download(new Blob([DSP.encodeWav(chans, buf.sampleRate)], { type: 'audio/wav' }), 'melodize-song.wav');
   } catch (e) { download(recording, 'melodize-song.webm'); }
-  btn.textContent = original; btn.disabled = false;
+  btn.innerHTML = original; btn.disabled = false;
 }
 $('#exportBtn').addEventListener('click', () => doExport(false));
 $('#stemsBtn').addEventListener('click', () => doExport(true));
@@ -3507,9 +3659,12 @@ $('#roomSel').addEventListener('change', e => applyRoom(e.target.value));
 ===================================================================== */
 function projectData() {
   tasteReward();
+  return projectSnapshot();
+}
+function projectSnapshot() {           // the whole song as plain data (also used for Undo in the quick song maker)
   const data = { app:'melodize', version:2, name: ($('#projName').value || '').trim() || 'Untitled song', settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize, preset:S.preset || 'balanced', room:S.room || 'hall' },
     tracks: tracks.map(t => {
-      const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, repeat:!!t.repeat, ch:t.ch, sweep:!!t.sweep };
+      const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, enterBar:t.enterBar || 0, repeat:!!t.repeat, ch:t.ch, sweep:!!t.sweep, isBand:!!t.isBand, role:t.role || null, styleId:t.styleId || null };
       return t.type === 'melody'
         ? Object.assign(base, { instKey:t.instKey, notes:t.notes, pump:t.pump, octave:t.octave })
         : t.type === 'audio' ? Object.assign(base, { sr:t.sr, wav:u8ToB64(new Uint8Array(DSP.encodeWav([t.data], t.sr))) })
@@ -3535,11 +3690,14 @@ async function loadProjectData(data) {
   keySel.value = S.keyRoot === 'auto' ? 'auto' : String(S.keyRoot);
   $('#projName').value = data.name || '';
   for (const t of data.tracks || []) {
+    const before = tracks.length;
     if (t.type === 'melody' && ALL_INST[t.instKey]) await addMelodyTrack(t.instKey, t.notes, t);
     else if (t.type === 'drums') await addDrumTrack(t.pattern, KITS[t.kitKey] ? t.kitKey : 'club', t);
     else if (t.type === 'audio' && t.wav) { const w = DSP.decodeWav(b64ToBuf(t.wav)); await addAudioTrack(w.data, w.sr, t); }
+    if (tracks.length === before) continue;            // skipped (unknown instrument): don't apply its settings to the previous track
     const nt = tracks[tracks.length - 1];
-    if (nt) { nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.repeat = !!t.repeat; if (t.ch) nt.ch = Object.assign({ low:0, mid:0, high:0, comp:0 }, t.ch); nt.sweep = !!t.sweep; applyChannel(nt); }
+    nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.enterBar = t.enterBar | 0; nt.repeat = !!t.repeat; if (t.ch) nt.ch = Object.assign({ low:0, mid:0, high:0, comp:0 }, t.ch); nt.sweep = !!t.sweep;
+    nt.isBand = !!t.isBand; nt.role = t.role || undefined; if (t.styleId) nt.styleId = t.styleId; applyChannel(nt);
   }
   rebuildAllParts(); renderTracks(); updateLoop();
 }
@@ -3589,6 +3747,7 @@ function goQuiet() {
   chat.speaking = false;
   try { if (chat.recording) finishChatRecording(); } catch (e) {}
   try { if (recCap) stopRecording(); } catch (e) {}
+  try { if (typeof Q !== 'undefined' && Q.rec) qStopRec(); } catch (e) {}
   try { if (chat.voiceOn) setVoice(false); else { stopListen(); stopLive(); } } catch (e) {}
   releaseMic();
   try { const c = Tone.context.rawContext; if (c && c.state === 'running') c.suspend(); } catch (e) {}
@@ -3607,9 +3766,366 @@ setTimeout(async () => {
     if (a && a.data && a.data.tracks && a.data.tracks.length) {
       setStatus('restoring your song…', 'busy'); await loadProjectData(a.data); setStatus('ready', 'ready');
       const li = $('#libInfo'); if (li) li.textContent = 'Welcome back — I restored your last song (' + a.tracks + ' tracks).';
+      const sb = document.querySelector('.studio-bar span'); if (sb) sb.innerHTML = '<b style="color:var(--accent)">Welcome back!</b> Your last song was restored — press ▶ Play all in the full studio, or hum a new tune above.';
     }
   } catch (e) { console.error(e); setStatus('ready', 'ready'); }
 }, 700);
+
+/* =====================================================================
+   8b. QUICK SONG MAKER — hum -> instrument -> feel -> finished song
+   For people who know nothing about music: every choice is one tap,
+   and changing a choice rebuilds the song straight away (with Undo).
+===================================================================== */
+const QUICK_INST = [
+  ['auto', 'Choose for me', 'best fit'], ['piano', 'Piano'], ['guitar', 'Guitar'], ['violin', 'Violin'], ['flute', 'Flute'], ['sax', 'Saxophone'],
+  ['trumpet', 'Trumpet'], ['cello', 'Cello'], ['harp', 'Harp'], ['bell', 'Electric piano'], ['supersaw', 'Synth lead'], ['xylo', 'Xylophone']
+];
+// each feel = which band, which beat, and how the finished song should sound (master + space)
+const FEELS = {
+  solo:  { label: 'Just my tune', sub: 'instrument alone', band: null,        drums: null,      room: 'hall',  preset: 'warm',   mood: 'calm', rev: 0.3 },
+  calm:  { label: 'Calm',         sub: 'soft & chill',     band: 'lofi',      drums: 'lofi',    room: 'plate', preset: 'warm',   mood: 'calm' },
+  happy: { label: 'Happy',        sub: 'bright pop',       band: 'pop',       drums: 'pop',     room: 'plate', preset: 'bright', mood: 'happy' },
+  sad:   { label: 'Sad',          sub: 'emotional',        band: 'cinematic', drums: null,      room: 'hall',  preset: 'warm',   mood: 'sad', harmony: 'piano' },
+  party: { label: 'Party',        sub: 'dance beat',       band: 'house',     drums: 'house',   room: 'plate', preset: 'punchy', mood: 'energetic' },
+  epic:  { label: 'Epic',         sub: 'like a movie',     band: 'cinematic', drums: 'bigroom', room: 'hall',  preset: 'wide',   mood: 'epic' },
+  rock:  { label: 'Rock',         sub: 'guitars & drums',  band: 'rock',      drums: 'rock',    room: 'room',  preset: 'punchy', mood: 'energetic' }
+};
+// words people type for instruments we don't have -> the closest one we do have
+const INST_NEAR = { strings: 'violin', string: 'violin', viola: 'violin', orchestra: 'violin', ukulele: 'nylon', uke: 'nylon', mandolin: 'nylon', sitar: 'nylon', banjo: 'guitar',
+  oboe: 'clarinet', bassoon: 'clarinet', tuba: 'trombone', brass: 'trumpet', accordion: 'harmonium', whistle: 'flute', recorder: 'flute', 'pan flute': 'flute', bansuri: 'flute',
+  'music box': 'xylo', glockenspiel: 'xylo', vibraphone: 'bell', synth: 'supersaw', synthesizer: 'supersaw', choir: 'pad', voice: 'pad', veena: 'harp', guitar: 'guitar' };
+const Q = { take: null, inst: 'auto', feel: 'happy', recipe: null, text: '', built: false, busy: false, again: false, undo: [], redo: [], rec: null, stream: null, raf: 0, t0: 0, timer: 0, aud: 0, leadKey: null };
+
+function qFeel() {
+  if (Q.recipe) {
+    const r = Q.recipe;
+    return { label: '“' + Q.text + '”', band: r.style, drums: r.drumStyle, harmony: ALL_INST[r.harmony] ? r.harmony : undefined,
+      room: r.reverb > 0.7 ? 'cathedral' : r.reverb > 0.45 ? 'hall' : 'plate', preset: r.energy > 0.65 ? 'punchy' : r.mode === 'minor' ? 'warm' : 'bright',
+      mood: r.mode === 'minor' ? (r.energy > 0.6 ? 'dark' : 'sad') : (r.energy > 0.6 ? 'energetic' : 'calm'), lead: r.lead };
+  }
+  return FEELS[Q.feel] || FEELS.happy;
+}
+function qLeadKey(feel) {
+  if (Q.inst !== 'auto') return Q.inst;
+  if (feel.lead && ALL_INST[feel.lead] && BASSY.indexOf(feel.lead) === -1) return feel.lead;
+  const ranked = DSP.recommendInstruments(Q.take.secNotes, { mood: feel.mood, taste: tasteCtx() });
+  const r = ranked.find(x => BASSY.indexOf(x.key) === -1 && x.key !== 'pad');
+  return r ? r.key : 'piano';
+}
+function qOctave(key) {     // move the tune into the range where this instrument sounds its best
+  const r = DSP.recommendInstruments(Q.take.secNotes, {}).find(x => x.key === key);
+  return r ? r.octave : (ALL_INST[key].octave || 0);
+}
+const qLead = () => currentMelody();
+
+/* --- step 1: record the hum --- */
+function qMeter(level) {
+  const cv = $('#qMeter'), g = cv.getContext('2d'), w = cv.width, h = cv.height;
+  g.fillStyle = '#0a0b12'; g.fillRect(0, 0, w, h);
+  const grad = g.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, '#2dd4bf'); grad.addColorStop(1, '#38bdf8');
+  g.fillStyle = grad; g.fillRect(0, h * 0.28, Math.min(w, w * level * 3), h * 0.44);
+}
+function qRecUI(state, label, sub) {
+  const b = $('#qRec'); b.classList.toggle('live', state === 'live'); b.disabled = state === 'busy';
+  b.setAttribute('aria-label', state === 'live' ? 'Stop recording' : 'Start recording');
+  $('#qRecLabel').textContent = label; $('#qRecSub').textContent = sub || '';
+}
+function qSay(html, bad) { const h = $('#qHeard'); h.style.display = 'flex'; h.classList.toggle('bad', !!bad); h.innerHTML = html; }
+async function qStartRec() {
+  getCapCtx();                       // must happen inside the tap for iPhone
+  await Tone.start(); stopPlayback(); Q.aud++;
+  try { Q.stream = await getMic(); }
+  catch (e) { qSay('<div class="msg">I can\'t use the microphone. Please allow microphone access for this site (look for the mic or lock icon by the address bar) and try again.</div>', true); return; }
+  try { Q.rec = await openPcmCapture(Q.stream); }
+  catch (e) { console.error(e); try { Q.stream.getTracks().forEach(t => t.stop()); } catch (e2) {} Q.stream = null; qSay('<div class="msg">The recorder could not start on this device. Please reload the page and try again.</div>', true); return; }
+  const ctx = Tone.context.rawContext, an = ctx.createAnalyser(); an.fftSize = 1024;
+  ctx.createMediaStreamSource(Q.stream).connect(an);
+  const arr = new Uint8Array(an.frequencyBinCount);
+  (function loop() { an.getByteTimeDomainData(arr); let s = 0; for (let i = 0; i < arr.length; i++) { const v = (arr[i] - 128) / 128; s += v * v; } qMeter(Math.sqrt(s / arr.length)); Q.raf = requestAnimationFrame(loop); })();
+  Q.t0 = Date.now();
+  qRecUI('live', 'Listening… hum your tune', 'Tap again when you\'re done (0:00)');
+  Q.timer = setInterval(() => {
+    const s = (Date.now() - Q.t0) / 1000;
+    $('#qRecSub').textContent = 'Tap again when you\'re done (' + fmtTime(s).replace(/^0/, '') + ')';
+    if (s >= 60) qStopRec();                       // one minute is plenty for a tune
+  }, 250);
+}
+function qStopRec() {
+  const cap = Q.rec; Q.rec = null; if (!cap) return;
+  clearInterval(Q.timer); cancelAnimationFrame(Q.raf);
+  const pcm = cap.stop();
+  try { Q.stream.getTracks().forEach(t => t.stop()); } catch (e) {} Q.stream = null;
+  $('#qMeter').getContext('2d').clearRect(0, 0, 320, 34);
+  qAnalyse(pcm, cap.sr);
+}
+async function qAnalyse(data, sr) {
+  if (!data || data.length < sr * 0.6) {
+    qRecUI('idle', 'Tap to try again', 'Hum for at least a couple of seconds');
+    qSay('<div class="msg">That was a bit short — hum for a few seconds, then tap again to stop.</div>', true); return;
+  }
+  qRecUI('busy', 'Listening to your tune…', 'Finding the notes');
+  await sleep(40);                                 // let the screen update before the heavy work
+  let res;
+  try { res = DSP.transcribe(data, sr, { bpm: 100, grid: 4, scale: 'auto', latency: 0, trimLead: true, autoTempo: true, keyRoot: null }); }
+  catch (e) { console.error(e); res = { notes: [] }; }
+  if (!res.notes || res.notes.length < 2) {
+    qRecUI('idle', 'Tap to try again', 'A quiet room and humming a little louder helps');
+    qSay('<div class="msg">I couldn\'t catch a clear tune there. Try humming a bit louder and closer to the phone, and hold each note for a moment.</div>', true); return;
+  }
+  const bpm = res.tempo && res.bpm ? Math.max(60, Math.min(180, res.bpm)) : 100, beat = 60 / bpm;
+  const notes = res.notes.map(n => ({ midi: n.midi, startB: n.start / beat, durB: n.dur / beat, vel: n.vel }));
+  Q.take = { data, sr, bpm, secNotes: res.notes, key: res.key ? res.key.name : null, notes };
+  // Nova (the chat) can work with the same tune
+  chat.take = { secNotes: res.notes, key: Q.take.key, audioUrl: null, audio: data.slice(Math.min(data.length - 1, Math.round((res.leadSec || 0) * sr))), sr, beatNotes: notes.map(n => Object.assign({}, n)) };
+  const last = res.notes[res.notes.length - 1], secs = Math.max(1, Math.round(last.start + last.dur - res.notes[0].start));
+  qRecUI('idle', 'Got it!', 'Tap the mic to hum it again');
+  qSay('<canvas id="qMini" width="300" height="72"></canvas><div class="msg"><b>Got it — ' + res.notes.length + ' notes, about ' + secs + ' seconds.</b> ' +
+    (Q.built ? 'Updating your song with the new tune…' : 'Now pick an instrument below.') + '</div><button class="btn small ghost" id="qHear">▶ Hear it</button>');
+  requestAnimationFrame(() => { const c = $('#qMini'); if (c) drawMini(c, notes); });
+  $('#qHear').addEventListener('click', () => qAudition(Q.inst === 'auto' ? 'piano' : Q.inst));
+  qUpdate();
+  if (Q.built) qBuild();
+}
+$('#qRec').addEventListener('click', () => { if (Q.rec) qStopRec(); else if (!Q.busy) qStartRec(); });
+
+/* hear the tune on an instrument before building (stops cleanly if you tap another one) */
+async function qAudition(key) {
+  if (!Q.take) { previewInstrument(key); return; }
+  const tok = ++Q.aud; await Tone.start();
+  if (!previewCache[key]) { setStatus('loading ' + ALL_INST[key].label + '…', 'busy'); previewCache[key] = await createInstrument(key); previewCache[key].out.connect(masterGain); setStatus('ready', 'ready'); }
+  if (tok !== Q.aud) return;
+  const p = previewCache[key], beat = 60 / Q.take.bpm, oct = qOctave(key), t0 = Tone.now() + 0.12;
+  const ev = Q.take.notes.filter(n => n.startB * beat < 12);
+  let i = 0;
+  (function pump() {
+    if (tok !== Q.aud) return;
+    const horizon = Tone.now() + 0.3;
+    while (i < ev.length && t0 + ev[i].startB * beat < horizon) { const n = ev[i++]; p.play(DSP.midiToNoteName(clampMidi(n.midi + 12 * oct)), Math.max(0.05, n.durB * beat * 0.98), t0 + n.startB * beat, n.vel || 0.85); }
+    if (i < ev.length) setTimeout(pump, 100);
+  })();
+}
+
+/* --- step 2: instrument --- */
+function qInstCard(key, name, sub) {
+  const b = document.createElement('button'); b.type = 'button';
+  b.className = 'q-card' + (key === 'auto' ? ' auto' : '') + (Q.inst === key ? ' on' : ''); b.dataset.k = key;
+  b.innerHTML = (key === 'auto' ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICO.nova + '</svg>' : ico(key)) +
+    '<span class="nm">' + name + '</span>' + (sub ? '<span class="ds">' + sub + '</span>' : '');
+  b.addEventListener('click', () => qPickInst(key));
+  return b;
+}
+function qRenderInst() {
+  const g = $('#qInst'); g.innerHTML = '';
+  QUICK_INST.forEach(([k, n, s]) => g.appendChild(qInstCard(k, n, s)));
+  const all = $('#qInstAll'); all.innerHTML = '';
+  Object.keys(ALL_INST).filter(k => !QUICK_INST.some(q => q[0] === k)).forEach(k => all.appendChild(qInstCard(k, ALL_INST[k].label)));
+}
+function qPickInst(key) {
+  Q.inst = key; qRenderInst(); qUpdate();
+  if (Q.built) qBuild();
+  else if (key !== 'auto') qAudition(key);
+  else if (Q.take) qAudition(qLeadKey(qFeel()));
+}
+$('#qInstMore').addEventListener('click', () => { const a = $('#qInstAll'), open = a.style.display === 'none'; a.style.display = open ? 'grid' : 'none'; $('#qInstMore').textContent = open ? 'Fewer instruments' : 'More instruments'; });
+function qFindInst(text) {
+  const n = ' ' + String(text || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  const pairs = [];
+  Object.keys(DSP.INSTRUMENT_ALIASES).forEach(k => DSP.INSTRUMENT_ALIASES[k].forEach(w => pairs.push([w, k, true])));
+  Object.keys(INST_NEAR).forEach(w => pairs.push([w, INST_NEAR[w], false]));
+  pairs.sort((a, b) => b[0].length - a[0].length);
+  for (const [w, k, exact] of pairs) if (n.indexOf(' ' + w + ' ') !== -1 || n.indexOf(' ' + w + 's ') !== -1) return { key: k, exact, word: w };
+  return null;
+}
+$('#qInstText').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const v = e.target.value.trim(); if (!v) return;
+  const f = qFindInst(v);
+  if (!f) { qSay('<div class="msg">I don\'t know “' + v.replace(/</g, '&lt;') + '” yet. Try piano, guitar, violin, flute, sax, trumpet, harp or synth — or tap “Choose for me”.</div>', true); return; }
+  e.target.value = '';
+  if (!f.exact) qSay('<div class="msg">I don\'t have a real ' + f.word + ' yet, so I\'m using the closest sound: <b>' + ALL_INST[f.key].label + '</b>.</div>');
+  if (!QUICK_INST.some(q => q[0] === f.key)) { $('#qInstAll').style.display = 'grid'; $('#qInstMore').textContent = 'Fewer instruments'; }
+  qPickInst(f.key);
+});
+
+/* --- step 3: feel --- */
+function qRenderFeels() {
+  const box = $('#qFeels'); box.innerHTML = '';
+  Object.keys(FEELS).forEach(k => {
+    const f = FEELS[k], b = document.createElement('button'); b.type = 'button';
+    b.className = 'q-feel' + (!Q.recipe && Q.feel === k ? ' on' : '');
+    b.innerHTML = f.label + '<small>' + f.sub + '</small>';
+    b.addEventListener('click', () => { Q.feel = k; Q.recipe = null; Q.text = ''; $('#qFeelText').value = ''; qRenderFeels(); qUpdate(); if (Q.built) qBuild(); });
+    box.appendChild(b);
+  });
+}
+$('#qFeelText').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const v = e.target.value.trim(); if (!v) return;
+  const r = DSP.sceneRecipe(v);
+  if (!r) { qSay('<div class="msg">I didn\'t catch a feeling in that. Try words like dreamy, rainy, party, lonely, sunny, epic or romantic.</div>', true); return; }
+  Q.recipe = r; Q.text = v; qRenderFeels(); qUpdate();
+  if (Q.built) qBuild();
+});
+
+/* --- build the whole song --- */
+function qArrange(lead, withBand) {
+  const L = Math.max(1, clipBars(lead));
+  if (!withBand) {                                  // just the tune: play it once, then loop
+    S.bars = Math.min(64, L); tracks.forEach(t => { t.repeat = false; t.startBar = 0; t.endBar = 0; t.enterBar = 0; });
+  } else {
+    // a short intro with just the tune and chords, then bass and drums come in; whole number of tune repeats
+    const intro = L >= 4 ? 4 : L * Math.ceil(4 / L);
+    S.bars = Math.min(64, L * Math.ceil(Math.max(16, intro + 8) / L));
+    tracks.forEach(t => {
+      t.endBar = 0;
+      if (t.type === 'drums') { t.startBar = Math.min(intro, S.bars - 1); t.enterBar = 0; t.fills = S.bars >= 8; }
+      else if (t.type === 'melody') { t.repeat = true; t.startBar = 0; t.enterBar = BASSY.indexOf(t.instKey) !== -1 || t.role === 'bass' ? intro : 0; }
+    });
+  }
+  $('#bars').value = S.bars;
+  rebuildAllParts();
+}
+// the choices that built the song now playing (the buttons may already show a newer choice when we save an undo step)
+function qState() { const c = Q.cur || { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text }; return { song: projectSnapshot(), inst: c.inst, feel: c.feel, recipe: c.recipe, text: c.text, bpm: Q.take ? Q.take.bpm : null, built: Q.built }; }
+function qPushUndo() {
+  try { Q.undo.push(qState()); if (Q.undo.length > 25) Q.undo.shift(); Q.redo = []; } catch (e) { console.error(e); }
+}
+Q.chain = Promise.resolve();
+const qQueue = fn => (Q.chain = Q.chain.then(fn).catch(e => console.error(e)));   // taps run one after another, none get lost
+async function qBuild() {
+  if (!Q.take) return;
+  if (Q.busy) { Q.again = true; return; }
+  Q.busy = true; Q.again = false; Q.aud++;
+  const btn = $('#qMake'); btn.disabled = true; btn.textContent = 'Making your song…';
+  $('#qWhy').textContent = 'Finding chords, adding a band and polishing the sound…';
+  try {
+    await Tone.start(); stopPlayback();
+    if (tracks.length) qPushUndo();
+    tracks.slice().forEach(t => removeTrack(t.id, true)); chat.jam = null;
+    S.swing = 0; $('#swingSel').value = '0';
+    applyBpm(Q.take.bpm);
+    const feel = qFeel(), leadKey = qLeadKey(feel);
+    const lead = await addMelodyTrack(leadKey, Q.take.notes.map(n => Object.assign({}, n)), { octave: qOctave(leadKey) });
+    if (feel.band) {
+      await buildBand(feel.band, { src: lead, quiet: true, noDrums: true, harmony: feel.harmony });
+      if (feel.drums) { const d = await makeBeat(feel.drums, { quiet: true }); if (d) d.isBand = true; }
+    }
+    autoMix();                                        // sensible levels, panning and low-cut for every part
+    tracks.forEach(t => { if (t.isBand && t.role === 'chords') { t.volume *= 0.72; t.rev = Math.max(t.rev, 0.2); applyTrackFx(t); } });
+    if (feel.rev) { lead.rev = feel.rev; lead.dly = 0.05; applyTrackFx(lead); }
+    qArrange(lead, !!feel.band);
+    applyPreset(feel.preset); await applyRoom(feel.room);
+    applyMix(); renderTracks();
+    Q.built = true; Q.leadKey = leadKey; Q.cur = { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text };
+    const sb = document.querySelector('.studio-bar span'); if (sb) sb.textContent = 'Want to add more layers, beatbox drums or fine-tune the mix?';
+    tasteBump('inst', leadKey, 0.5);
+    qResultInfo(feel, leadKey);
+    $('#qResult').style.display = 'block';
+    startPlayback(); startViz();
+  } catch (e) {
+    console.error(e);
+    qSay('<div class="msg">Something went wrong while making the song. Please try again — if it keeps happening, reload the page.</div>', true);
+  }
+  Q.busy = false; qUpdate();
+  if (Q.again) qBuild();
+}
+function qResultInfo(feel, leadKey) {
+  const nm = t => ALL_INST[t.instKey].label.toLowerCase();
+  const parts = tracks.filter(t => t.isBand).map(t => t.type === 'drums' ? 'drums' : t.role === 'bass' ? (/bass/.test(nm(t)) ? nm(t).replace(/ ?bass$/, '') + ' bass line' : nm(t) + ' bass line').trim() : nm(t) + ' chords');
+  $('#qResInfo').innerHTML = 'Your tune is playing on <b>' + ALL_INST[leadKey].label + '</b>' + (Q.inst === 'auto' ? ' (my pick for your tune)' : '') +
+    (parts.length ? ', with ' + parts.join(', ').replace(/, ([^,]*)$/, ' and $1') + ' to match the <b>' + feel.label.toLowerCase().replace(/^“|”$/g, '') + '</b> feel.' : ', on its own with a soft hall echo.') +
+    (parts.length ? ' It starts with your tune, then the band joins in.' : '');
+  $('#qBpm').textContent = S.bpm + ' beats per minute';
+}
+function qUpdate() {
+  const has = !!Q.take;
+  $('#qStep1').classList.toggle('done', has);
+  $('#qStep2').classList.toggle('done', has && !!Q.inst);
+  $('#qStep3').classList.toggle('done', has && (!!Q.recipe || !!Q.feel));
+  const btn = $('#qMake');
+  if (Q.busy) return;
+  btn.disabled = !has;
+  btn.textContent = Q.built ? '↻ Make it again' : '✦ Make my song';
+  $('#qWhy').textContent = !has ? 'Start by humming your tune in step 1.' : Q.built ? 'Your song is below. Change anything above and it updates.' : 'Ready when you are.';
+  $('#qUndo').disabled = !Q.undo.length; $('#qRedo').disabled = !Q.redo.length;
+}
+$('#qMake').addEventListener('click', () => qBuild());
+
+/* --- simple editing on the finished song --- */
+function qEdit(fn) { qPushUndo(); fn(); qUpdate(); }
+async function qRestore(snap) {
+  stopPlayback(); setStatus('restoring…', 'busy');
+  await loadProjectData(snap.song);
+  Q.inst = snap.inst; Q.feel = snap.feel; Q.recipe = snap.recipe; Q.text = snap.text || ''; Q.built = snap.built;
+  Q.cur = { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text };
+  if (Q.take && snap.bpm) Q.take.bpm = snap.bpm;
+  $('#qFeelText').value = Q.text; qRenderInst(); qRenderFeels();
+  const lead = qLead(); if (lead && Q.built) qResultInfo(qFeel(), lead.instKey);
+  $('#qResult').style.display = Q.built && tracks.length ? 'block' : 'none';
+  setStatus('ready', 'ready'); qUpdate();
+}
+async function qIdle() { for (let i = 0; i < 300 && Q.busy; i++) await sleep(100); }   // taps made while busy wait their turn instead of being lost
+async function qSwap(from, to) {
+  await qIdle();
+  if (!from.length) return;
+  Q.busy = true; setStatus('one moment…', 'busy');
+  try { to.push(qState()); await qRestore(from.pop()); if (tracks.length) { startPlayback(); startViz(); } }   // play right away so you hear the difference
+  catch (e) { console.error(e); }
+  Q.busy = false; qUpdate();
+}
+$('#qUndo').addEventListener('click', () => qQueue(() => qSwap(Q.undo, Q.redo)));
+$('#qRedo').addEventListener('click', () => qQueue(() => qSwap(Q.redo, Q.undo)));
+$('#qPlay').addEventListener('click', async () => { await Tone.start(); Q.aud++; startPlayback(); startViz(); });
+$('#qStop').addEventListener('click', () => { Q.aud++; stopPlayback(); });
+async function qOct(d) {
+  await qIdle();
+  const lead = qLead(); if (!lead) return;
+  if ((d > 0 && lead.octave >= 2) || (d < 0 && lead.octave <= -2)) { $('#qResInfo').insertAdjacentHTML('beforeend', '<br><small>That\'s as far as it goes.</small>'); return; }
+  qEdit(() => { lead.octave += d; buildPart(lead); renderTracks(); });
+  auditionPlay();
+}
+async function qTempo(f) {
+  await qIdle();
+  qEdit(() => { applyBpm(Math.round(S.bpm * f)); if (Q.take) Q.take.bpm = S.bpm; $('#qBpm').textContent = S.bpm + ' beats per minute'; });
+  auditionPlay();
+}
+function auditionPlay() { Tone.start().then(() => { startPlayback(); startViz(); }); }
+$('#qHigher').addEventListener('click', () => qQueue(() => qOct(1)));
+$('#qLower').addEventListener('click', () => qQueue(() => qOct(-1)));
+$('#qFaster').addEventListener('click', () => qQueue(() => qTempo(1.08)));
+$('#qSlower').addEventListener('click', () => qQueue(() => qTempo(1 / 1.08)));
+$('#qFix').addEventListener('click', () => { const lead = qLead(); if (!lead) return; qPushUndo(); qUpdate(); stopPlayback(); openRoll(lead); });
+$('#qWav').addEventListener('click', async () => {
+  const b = $('#qWav'), txt = b.textContent; b.disabled = true; b.textContent = 'Preparing… (it plays through once)';
+  try { await doExport(false); } catch (e) { console.error(e); }
+  b.disabled = false; b.textContent = txt;
+});
+$('#qKeep').addEventListener('click', () => {
+  if (!$('#projName').value.trim()) $('#projName').value = 'My song ' + new Date().toLocaleDateString();
+  libSave(false);
+  $('#qResInfo').insertAdjacentHTML('beforeend', '<br><b style="color:var(--accent)">Saved as “' + $('#projName').value.replace(/</g, '&lt;') + '”.</b> Find it under My projects in the full studio.');
+});
+$('#qNew').addEventListener('click', () => {
+  if (tracks.length) qPushUndo();
+  stopPlayback(); tracks.slice().forEach(t => removeTrack(t.id, true));
+  Q.take = null; Q.built = false; Q.cur = null; chat.take = null; $('#projName').value = '';
+  $('#qResult').style.display = 'none'; $('#qHeard').style.display = 'none';
+  qRecUI('idle', 'Tap to start', 'Tap again when you\'re done'); qUpdate();
+  $('#quickPanel').scrollIntoView({ behavior: 'smooth' });
+});
+
+/* --- full studio: hidden until you want it --- */
+const STUDIO_KEY = 'melodize.studio';
+function showStudio(on) {
+  $('#studioWrap').style.display = on ? 'block' : 'none';
+  $('#studioToggle').textContent = on ? 'Hide full studio ▴' : 'Show full studio ▾';
+  try { localStorage.setItem(STUDIO_KEY, on ? '1' : '0'); } catch (e) {}
+  if (on) { renderTracks(); try { drawTimeline(); } catch (e) {} }
+}
+$('#studioToggle').addEventListener('click', () => showStudio($('#studioWrap').style.display === 'none'));
+$('#qOpenStudio').addEventListener('click', e => { e.preventDefault(); showStudio(true); $('#studioWrap').scrollIntoView({ behavior: 'smooth' }); });
+try { if (localStorage.getItem(STUDIO_KEY) === '1') showStudio(true); } catch (e) {}
+qRenderInst(); qRenderFeels(); qUpdate();
 
 /* =====================================================================
    9. BOOT  (+ PWA)
