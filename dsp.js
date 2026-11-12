@@ -674,7 +674,13 @@ const BAND_STYLES = {
   trap:      { chord: 'pad',      bass: 'sub',  cpat: 'whole',  bpat: 'trap',  drums: 'trap',   label: 'Trap' },
   rock:      { chord: 'eguitar',  bass: 'bass', cpat: 'eighths',bpat: 'eight', drums: 'rock',   label: 'Rock' },
   cinematic: { chord: 'pad',      bass: 'cello',cpat: 'whole',  bpat: 'whole', drums: 'bigroom',label: 'Cinematic' },
-  arp:       { chord: 'pluck',    bass: 'bass', cpat: 'arp',    bpat: 'pop',   drums: 'pop',    label: 'Arpeggio pop' }
+  arp:       { chord: 'pluck',    bass: 'bass', cpat: 'arp',    bpat: 'pop',   drums: 'pop',    label: 'Arpeggio pop' },
+  // hard techno / schranz: almost no harmony, one dark stab per bar, a bass that rolls in the gaps between kicks
+  hardtechno:{ chord: 'techstab', bass: 'rumble', cpat: 'stab1', bpat: 'roll', drums: 'hardtechno', label: 'Hard techno' },
+  // rave / industrial-trance techno: a wide pad underneath, a squelchy acid line on the off-beats
+  rave:      { chord: 'pad',      bass: 'acid',  cpat: 'whole',  bpat: 'acid',  drums: 'rave',       label: 'Rave techno' },
+  // modern pop: bouncy electric-piano chords, a deep 808-style bass
+  modernpop: { chord: 'bell',     bass: 'sub',   cpat: 'pop2',   bpat: 'trap',  drums: 'modernpop',  label: 'Modern pop' }
 };
 function voiceChords(chords, add7, prevV) {
   const out = []; let last = prevV || [60, 64, 67];
@@ -713,6 +719,8 @@ function bandParts(chords, styleId, opts) {
       case 'whole': C(v, o, 4, 0.5); break;
       case 'eighths': for (let x = 0; x < 4; x += 0.5) C(v.slice(0, 2), o + x, 0.45, x % 1 ? 0.55 : 0.72); break;
       case 'arp': for (let x = 0, k = 0; x < 4; x += 0.5, k++) { const seq = [v[0], v[1], v[2], v[1]]; cn.push({ midi: seq[k % 4] + (k % 8 >= 4 ? 12 : 0), startB: o + x, durB: 0.45, vel: 0.62 }); } break;
+      case 'stab1': C(v, o + 2.5, 0.25, 0.62); break;
+      case 'pop2': C(v, o, 1.5, 0.55); C(v, o + 1.5, 1, 0.48); C(v, o + 2.5, 1.5, 0.52); break;
     }
     switch (st.bpat) {
       case 'pop': bn.push({ midi: b, startB: o, durB: 1.5, vel: 0.85 }, { midi: b, startB: o + 2, durB: 1, vel: 0.75 }, { midi: fifth, startB: o + 3, durB: 1, vel: 0.7 }); break;
@@ -721,6 +729,8 @@ function bandParts(chords, styleId, opts) {
       case 'trap': bn.push({ midi: b - 0, startB: o, durB: 1.75, vel: 0.9 }, { midi: b, startB: o + 2.5, durB: 0.5, vel: 0.8 }, { midi: b, startB: o + 3, durB: 1, vel: 0.85 }); break;
       case 'eight': for (let x = 0; x < 4; x += 0.5) bn.push({ midi: b, startB: o + x, durB: 0.45, vel: x % 1 ? 0.7 : 0.85 }); break;
       case 'whole': bn.push({ midi: b, startB: o, durB: 4, vel: 0.8 }); break;
+      case 'roll': for (let x = 0; x < 4; x++) [0.25, 0.5, 0.75].forEach(f => bn.push({ midi: b, startB: o + x + f, durB: 0.2, vel: f === 0.5 ? 0.85 : 0.72 })); break;
+      case 'acid': for (let x = 0.25, k = 0; x < 4; x += 0.25) { if (x % 1 === 0) continue; bn.push({ midi: b + 12 + (k % 3 === 1 ? 12 : k % 5 === 3 ? 7 : 0), startB: o + x, durB: 0.2, vel: k % 3 === 1 ? 0.9 : 0.7 }); k++; } break;
     }
   });
   return { chords: cn, bass: bn, style: st };

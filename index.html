@@ -465,6 +465,7 @@
         <button class="btn small ghost" id="qHigher">Higher</button>
         <button class="btn small ghost" id="qLower">Lower</button>
         <button class="btn small ghost" id="qFix" title="Open the note editor to fix a single wrong note">Fix a wrong note</button>
+        <button class="btn small ghost" id="qVoice" style="display:none" title="Put the recording of your own humming or singing on top of the song">Add my real voice</button>
       </div>
       <div class="q-row"><span class="lbl">Speed</span>
         <button class="btn small ghost" id="qSlower">Slower</button>
@@ -844,6 +845,8 @@ const KITS = {
   club:  { type:'synth', label:"Club (synth, tight)", kickDecay:0.32, kickNote:'C1', pitchDecay:0.045, snareDecay:0.17, hatDecay:0.045 },
   '808': { type:'synth', label:"808 (synth, deep)", kickDecay:0.9, kickNote:'A0', pitchDecay:0.09, snareDecay:0.22, hatDecay:0.035 },
   punch: { type:'synth', label:"Punchy (synth, rock/pop)", kickDecay:0.28, kickNote:'D1', pitchDecay:0.03, snareDecay:0.24, hatDecay:0.06 },
+  // hard techno / schranz: distorted kick + "rumble" (the kick sent through a big reverb, then everything above ~150 Hz cut away)
+  hardtek: { type:'synth', label:"Hard techno (distorted + rumble)", kickDecay:0.42, kickNote:'C1', pitchDecay:0.035, snareDecay:0.16, hatDecay:0.035, hard:true },
   // sampled (downloaded the first time you use the kit)
   '909':    { type:'sampled', label:"Roland TR-909 (EDM / techno)", base: OR + "DM/TR-909/Detroit/samples/",
               files:{ kick:'kick.wav', snare:'snare.wav', clap:'clap-1.wav', hat:'hihat-closed.wav', openhat:'hihat-open-1.wav', tom:'tom-l.wav', perc:'rim.wav', ride:'ride.wav', crash:'cymbal.wav' } },
@@ -861,7 +864,17 @@ function buildSynthKit(k) {
   const out = new Tone.Gain(0.9);
   const nodes = [out];
   const kick = new Tone.MembraneSynth({ pitchDecay:k.pitchDecay, octaves:6, oscillator:{ type:'sine' },
-    envelope:{ attack:0.001, decay:k.kickDecay, sustain:0, release:0.1 } }).connect(out);
+    envelope:{ attack:0.001, decay:k.kickDecay, sustain:0, release:0.1 } });
+  let ready = Promise.resolve();
+  if (k.hard) {
+    const drive = new Tone.Distortion({ distortion: 0.85, oversample: '4x' }), trim = new Tone.Gain(0.55);
+    const rev = new Tone.Reverb({ decay: 1.8, preDelay: 0.01 }); rev.wet.value = 1;
+    const lp = new Tone.Filter({ frequency: 150, type: 'lowpass', rolloff: -24 }), rDrive = new Tone.Distortion(0.4), rGain = new Tone.Gain(0.9);
+    kick.connect(drive); drive.connect(trim); trim.connect(out);              // the hard, crunchy kick
+    drive.chain(rev, lp, rDrive, rGain, out);                                   // the rolling rumble under it
+    nodes.push(drive, trim, rev, lp, rDrive, rGain);
+    ready = rev.ready ? rev.ready.catch(() => {}) : Promise.resolve();
+  } else kick.connect(out);
   const snareHP = new Tone.Filter(1400, 'highpass').connect(out);
   const snareN = new Tone.NoiseSynth({ noise:{ type:'white' }, envelope:{ attack:0.001, decay:k.snareDecay, sustain:0, release:0.05 } }).connect(snareHP);
   const snareB = new Tone.MembraneSynth({ pitchDecay:0.02, octaves:2.5, envelope:{ attack:0.001, decay:0.12, sustain:0, release:0.05 } }).connect(out);
@@ -885,7 +898,8 @@ function buildSynthKit(k) {
   crash.volume.value = -9;
   nodes.push(kick, snareHP, snareN, snareB, clapBP, clapN, hatHP, hat, ohat, tom, percBP, perc, rideBP, ride, crashHP, crash);
 
-  function trigger(voice, time, vel) {
+  function trigger(voice, time, vel) { try { hit(voice, time, vel); } catch (e) { /* a hit landing at the exact moment playback restarts — skip just that one */ } }
+  function hit(voice, time, vel) {
     vel = vel == null ? 0.9 : vel;
     switch (voice) {
       case 'kick': kick.triggerAttackRelease(k.kickNote, k.kickDecay, time, vel); break;
@@ -899,7 +913,7 @@ function buildSynthKit(k) {
       case 'crash': crash.triggerAttackRelease(1.2, time, vel * 0.9); break;
     }
   }
-  return { out, trigger, ready: Promise.resolve(), dispose: () => nodes.forEach(n => { try { n.dispose(); } catch(e){} }) };
+  return { out, trigger, ready, dispose: () => nodes.forEach(n => { try { n.dispose(); } catch(e){} }) };
 }
 
 function buildSampledKit(def) {
@@ -981,6 +995,12 @@ const PRESETS = [
     spec:{ kick:'x..x..x...x.x...', snare:'....x.......x...', perc:'x.xx.x.xx.x.x.xx', tom:'..x...x...x...x.' } },
   { name:"Lo-fi Chill", sub:"80 BPM · TR-505", bpm:80, kit:'tr505',
     spec:{ kick:'x.....x...x.....', snare:'....x.......x...', hat:'x.x.x.x.x.x.x.xx' } },
+  { name:"Hard Techno (rumble)", sub:"150 BPM · distorted kick + rumble", bpm:150, kit:'hardtek',
+    spec:{ kick:'x...x...x...x...', hat:'x.xxx.xxx.xxx.xx', openhat:'..x...x...x...x.', clap:'....x.......x...', perc:'...x..x....x..x.' } },
+  { name:"Rave Techno", sub:"145 BPM · hard & euphoric", bpm:145, kit:'hardtek',
+    spec:{ kick:'x...x...x...x...', clap:'....x.......x...', hat:'x.x.x.x.x.x.x.x.', openhat:'..x...x...x...x.', ride:'..x...x...x...x.' } },
+  { name:"Modern Pop", sub:"104 BPM · 808 + clap", bpm:104, kit:'808',
+    spec:{ kick:'x......x..x.....', clap:'....x.......x...', hat:'x.x.x.x.x.x.xxx.', perc:'...........x....' } },
   { name:"Empty pattern", sub:"draw your own", bpm:null, kit:null, spec:{} }
 ];
 
@@ -1029,16 +1049,16 @@ function makeTrackChain() {
 /* ----- auto-mix: sensible levels, low-cut, stereo spread and reverb by role ----- */
 const ICO = {"piano": "<rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M8 12v6M12 12v6M16 12v6\"/><path d=\"M7 6v6M11 6v6M15 6v6\" stroke-width=\"2.6\"/>", "guitar": "<path d=\"M20 4l-8 8M19 3l2 2\"/><circle cx=\"9\" cy=\"15\" r=\"5\"/><circle cx=\"9\" cy=\"15\" r=\"1.4\"/>", "eguitar": "<path d=\"M20 4l-9 9M19 3l2 2\"/><path d=\"M5 12l7 7-3 2.5a3 3 0 0 1-4.2 0l-2.3-2.3a3 3 0 0 1 0-4.2z\"/><path d=\"M7 16l2 2\"/>", "nylon": "<path d=\"M20 4l-8 8M19 3l2 2\"/><path d=\"M5 11a4.5 4.5 0 0 0 0 7c2 2 6 2 7-1 1-3-3-3-3-6s-2.5-3.5-4-0z\"/><circle cx=\"8\" cy=\"15\" r=\"1.2\"/>", "bass": "<path d=\"M21 3l-9.5 9.5M19.5 2l3 3\"/><path d=\"M5 13l6 6-2.5 2.5a3 3 0 0 1-4.2 0l-2-2a3 3 0 0 1 0-4.2z\"/><path d=\"M7.5 16.5l1.5 1.5\"/>", "violin": "<path d=\"M12 2v5\"/><path d=\"M9.5 9a2.5 2.5 0 0 1 5 0c0 1.5-1 2-1 3s2 1.5 2 4.5a4 4 0 0 1-8 0C7.5 13.5 9.5 13 9.5 12S9.5 10.5 9.5 9z\"/><path d=\"M10.5 14.5l.5 2.5M13.5 14.5l-.5 2.5\"/><path d=\"M9 21h6\"/>", "cello": "<path d=\"M12 1v6\"/><path d=\"M9 9.5a3 3 0 0 1 6 0c0 1.5-1 2-1 3.5s2.5 2 2.5 4.5a4.5 4.5 0 0 1-9 0C7.5 15 10 14.5 10 13S9 11 9 9.5z\"/><path d=\"M12 22v-1M10.5 15l.5 2.5M13.5 15l-.5 2.5\"/>", "flute": "<path d=\"M2.5 10.5h19v3h-19z\" transform=\"rotate(-18 12 12)\"/><circle cx=\"8\" cy=\"12.3\" r=\".7\"/><circle cx=\"12\" cy=\"11\" r=\".7\"/><circle cx=\"16\" cy=\"9.7\" r=\".7\"/>", "clarinet": "<path d=\"M10 2h4v14h-4z\"/><path d=\"M8 21l2-5h4l2 5z\"/><circle cx=\"12\" cy=\"6\" r=\".8\"/><circle cx=\"12\" cy=\"10\" r=\".8\"/><circle cx=\"12\" cy=\"13\" r=\".8\"/>", "sax": "<path d=\"M8 3v12.5a5 5 0 0 0 10 0V13\"/><path d=\"M15.5 13h5\"/><circle cx=\"8\" cy=\"7\" r=\".8\"/><circle cx=\"8\" cy=\"10.5\" r=\".8\"/><path d=\"M6 3h4\"/>", "trumpet": "<path d=\"M3 12h10\"/><rect x=\"5\" y=\"8\" width=\"7\" height=\"8\" rx=\"3.5\"/><path d=\"M13 12l8-5v10z\"/><path d=\"M8 5v3\"/>", "trombone": "<path d=\"M3 9h13M3 13h13M3 9v4\"/><path d=\"M16 9l5-3v10l-5-3\"/><path d=\"M5 13v5h3\"/>", "horn": "<circle cx=\"11\" cy=\"12\" r=\"7.5\"/><circle cx=\"11\" cy=\"12\" r=\"3.5\"/><path d=\"M18 9c2 0 3.5-1 4-3M18.5 15.5c2 1 3 2 3.5 4\"/>", "harp": "<path d=\"M18 4v17M18 4C13 2.5 7 5 6 10l8 11h4\"/><path d=\"M15.5 3.8V19M13 3.8v14M10.5 5.2v9M8.5 7.5v5\"/>", "organ": "<path d=\"M3 21h18\"/><rect x=\"4\" y=\"9\" width=\"3\" height=\"12\" rx=\"1.5\"/><rect x=\"8.5\" y=\"4\" width=\"3\" height=\"17\" rx=\"1.5\"/><rect x=\"13\" y=\"4\" width=\"3\" height=\"17\" rx=\"1.5\"/><rect x=\"17.5\" y=\"9\" width=\"3\" height=\"12\" rx=\"1.5\"/>", "harmonium": "<rect x=\"3\" y=\"5\" width=\"18\" height=\"10\" rx=\"2\"/><path d=\"M7 5v10M11 5v10M15 5v10M19 5v10\"/><path d=\"M5 19h14M8 15v4M12 15v4M16 15v4\"/>", "xylo": "<rect x=\"3.5\" y=\"4\" width=\"3.5\" height=\"16\" rx=\"1.5\"/><rect x=\"8.5\" y=\"6.5\" width=\"3.5\" height=\"11\" rx=\"1.5\"/><rect x=\"13.5\" y=\"9\" width=\"3.5\" height=\"6\" rx=\"1.5\"/><path d=\"M20 4l-2 5\"/><circle cx=\"20.3\" cy=\"3.5\" r=\"1.2\"/>", "supersaw": "<path d=\"M2 17l5-10v10l5-10v10l5-10v10l5-10\"/>", "pluck": "<path d=\"M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z\"/>", "pad": "<path d=\"M2 8c3-4 5-4 8 0s5 4 8 0 3-3 4-2M2 13c3-4 5-4 8 0s5 4 8 0 3-3 4-2M2 18c3-4 5-4 8 0s5 4 8 0 3-3 4-2\"/>", "sub": "<path d=\"M2 12c2-8 4-8 6 0s4 8 6 0 4-8 6 0\"/><path d=\"M2 20h20\"/>", "wobble": "<path d=\"M2 12c1-6 2-6 3 0s2 6 3 0 1-4 2.5 0 1.5 6 3 0 1-3 2 0 1.5 3 3 0 2-6 3-6\"/>", "acid": "<path d=\"M9 3h6M10 3v6l-5.5 9.5a2 2 0 0 0 1.8 3h11.4a2 2 0 0 0 1.8-3L14 9V3\"/><path d=\"M7.5 15h9\"/>", "bell": "<path d=\"M6 17v-5a6 6 0 0 1 12 0v5l2 2H4z\"/><path d=\"M12 3v3M10 21a2 2 0 0 0 4 0\"/>", "chip": "<rect x=\"6\" y=\"6\" width=\"12\" height=\"12\" rx=\"2\"/><rect x=\"10\" y=\"10\" width=\"4\" height=\"4\" rx=\".5\"/><path d=\"M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3\"/>", "drums": "<ellipse cx=\"12\" cy=\"10\" rx=\"8\" ry=\"3\"/><path d=\"M4 10v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7\"/><path d=\"M5 3l6 5M19 3l-6 5\"/>", "mic": "<rect x=\"9\" y=\"3\" width=\"6\" height=\"11\" rx=\"3\"/><path d=\"M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6\"/>", "grid": "<rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><path d=\"M4 12h16M12 4v16\"/>", "nova": "<path d=\"M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z\"/><path d=\"M19 15l.8 2.2L22 18l-2.2.800L19 21l-.8-2.2L16 18l2.2-.800z\"/>", "save": "<path d=\"M5 3h11l3 3v15H5z\"/><path d=\"M8 3v5h7V3M8 21v-7h8v7\"/>", "open": "<path d=\"M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "down": "<path d=\"M12 4v11M7 11l5 5 5-5M5 20h14\"/>", "wand": "<path d=\"M4 20L16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1zM19 12l.7 1.3L21 14l-1.3.700L19 16l-.7-1.3L17 14l1.3-.700z\"/>", "score": "<path d=\"M9 18V5l11-2v13\"/><circle cx=\"6.5\" cy=\"18\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"16\" r=\"2.5\"/>", "bulb": "<path d=\"M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 11c.7.6 1 1.3 1 2h5c0-.7.3-1.4 1-2A6 6 0 0 0 12 3z\"/>", "chat": "<path d=\"M4 5h16v11H9l-5 4z\"/>", "check": "<path d=\"M5 12.5l4.5 4.5L19 7\"/>", "trash": "<path d=\"M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6\"/>", "wave": "<path d=\"M3 12h2M7 7v10M11 4v16M15 8v8M19 10v4\"/>", "speaker": "<path d=\"M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11\"/>", "gear": "<circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2\"/>", "pencil": "<path d=\"M4 20l1-4L16 5l3 3L8 19zM14 7l3 3\"/>", "search": "<circle cx=\"11\" cy=\"11\" r=\"6\"/><path d=\"M16 16l4 4\"/>", "techstab": "<path d=\"M4 18V9l4 3V6l4 5V4l4 7V8l4 5v5z\"/><path d=\"M4 21h16\"/>", "dubchord": "<path d=\"M3 15c3-7 5-7 8 0 2 4 4 4 6 0s2-5 4-5\"/><path d=\"M3 20h18\"/>", "rumble": "<path d=\"M2 12h3l2-5 3 10 3-12 3 14 2-7h4\"/>", "reese": "<path d=\"M2 9c3-3 5-3 8 0s5 3 8 0M2 15c3-3 5-3 8 0s5 3 8 0\"/><path d=\"M2 12h20\" opacity=\".4\"/>", "hoover": "<path d=\"M3 17c2-1 3-4 4-8 1 4 2 7 5 8 3-1 4-4 5-9 1 5 2 8 4 9\"/>", "industrial": "<path d=\"M12 3l2 4 4-2-1 5 5 1-4 3 3 4-5 0-1 4-3-3-3 3-1-4-5 0 3-4-4-3 5-1-1-5 4 2z\"/>"};
 const ico = (k, c) => '<svg class="' + (c || 'i') + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICO[k] || ICO.wave) + '</svg>';
-const BASSY = ['bass','sub','wobble','acid'], LOWISH = ['cello','trombone','horn','organ','harmonium'], PADDY = ['pad','organ','harmonium','cello','harp'];
+const BASSY = ['bass','sub','wobble','acid','rumble','reese'], LOWISH = ['cello','trombone','horn','organ','harmonium'], PADDY = ['pad','organ','harmonium','cello','harp'];
 const TRIM = { supersaw: 0.62, wobble: 0.6, acid: 0.7, chip: 0.62, sub: 0.9, pluck: 0.85, pad: 0.8, bell: 0.85, eguitar: 0.8, trumpet: 0.75, sax: 0.8, xylo: 0.8 };
-function hpFor(t) { return t.type === 'audio' ? 80 : t.type === 'drums' ? 28 : BASSY.indexOf(t.instKey) !== -1 ? 30 : LOWISH.indexOf(t.instKey) !== -1 ? 60 : 110; }
+function hpFor(t) { return t.type === 'audio' ? 80 : t.type === 'drums' ? 28 : (BASSY.indexOf(t.instKey) !== -1 || t.role === 'bass') ? 30 : LOWISH.indexOf(t.instKey) !== -1 ? 60 : 110; }
 function autoMix() {
   let leadN = 0, padN = 0;
   tracks.forEach(t => {
     t.chain.hp.frequency.value = hpFor(t);
     if (t.type === 'audio') { t.volume = 0.9; t.pan = 0; t.rev = 0.2; t.dly = 0.04; }
     else if (t.type === 'drums') { t.volume = 0.8; t.pan = 0; t.rev = 0.05; t.dly = 0; }
-    else if (BASSY.indexOf(t.instKey) !== -1) { t.volume = 0.8 * (TRIM[t.instKey] || 1); t.pan = 0; t.rev = 0; t.dly = 0; }
+    else if (BASSY.indexOf(t.instKey) !== -1 || t.role === 'bass') { t.volume = 0.8 * (TRIM[t.instKey] || 1); t.pan = 0; t.rev = 0; t.dly = 0; }
     else if (PADDY.indexOf(t.instKey) !== -1) { t.volume = 0.52 * (TRIM[t.instKey] || 1); t.pan = (padN++ % 2 ? 0.3 : -0.3); t.rev = 0.3; t.dly = 0; }
     else { t.volume = 0.76 * (TRIM[t.instKey] || 1); t.pan = leadN === 0 ? 0 : (leadN % 2 ? 0.28 : -0.28); leadN++; t.rev = 0.14; t.dly = ['pluck', 'bell', 'chip', 'supersaw', 'xylo'].indexOf(t.instKey) !== -1 ? 0.07 : 0.03; }
     applyTrackFx(t);
@@ -1084,8 +1104,10 @@ function melodyEvents(t) {
   const bounded = !!(t.repeat || t.endBar);
   const reps = t.repeat ? Math.max(1, Math.ceil((eb - sb) / L)) : 1;
   const enter = (t.enterBar || 0) * 4;   // silent until this beat (keeps the part lined up with the others)
+  const rests = t.rests || [];          // [[fromBar, toBar], …] sections where this part sits out (breakdowns)
   for (let r = 0; r < reps; r++) t.notes.forEach(n => {
     const st = sb + r * L + n.startB; if (bounded && st >= eb) return; if (st < enter) return;
+    if (rests.some(x => st >= x[0] * 4 && st < x[1] * 4)) return;
     out.push(Object.assign({}, n, { startB: st, durB: bounded ? Math.min(n.durB, eb - st) : n.durB }));
   });
   return out;
@@ -1102,7 +1124,7 @@ function buildPart(t) {
     const ev = melodyEvents(t).map(n => [n.startB * beat, n]);
     t.part = new Tone.Part((time, n) => {
       const m = clampMidi(n.midi + 12 * t.octave);
-      t.inst.play(DSP.midiToNoteName(m), Math.max(0.05, n.durB * beat * 0.98), time, n.vel || 0.85);
+      try { t.inst.play(DSP.midiToNoteName(m), Math.max(0.05, n.durB * beat * 0.98), time, n.vel || 0.85); } catch (e) {}
     }, ev).start(0);
   } else {
     const stepDur = beat / 4, total = S.bars * 16, ev = [];
@@ -1110,8 +1132,16 @@ function buildPart(t) {
     const jitter = () => S.humanize ? (Math.random() - 0.5) * 0.012 : 0;
     const accent = () => S.humanize ? 0.9 + Math.random() * 0.18 : 1;
     const fromStep = (t.startBar || 0) * 16, toStep = t.endBar ? t.endBar * 16 : total;
+    const rests = t.rests || [], bld = t.build || null;
     for (let s = fromStep; s < Math.min(total, toStep); s++) {
       const ps = s % t.pattern.steps, bar = Math.floor(s / 16), sib = s % 16;
+      if (bld && bar >= bld[0] && bar < bld[1]) {     // build-up before a drop: a snare roll that gets faster and louder
+        const p = (s - bld[0] * 16) / ((bld[1] - bld[0]) * 16), every = p < 0.5 ? 4 : p < 0.75 ? 2 : 1;
+        if (sib % every === 0) ev.push([s * stepDur, { v: 'snare', vel: 0.3 + 0.7 * p }]);
+        continue;
+      }
+      if (bld && bar === bld[1] && sib === 0) ev.push([s * stepDur, { v: 'crash', vel: 1 }]);   // the drop
+      if (rests.some(x => bar >= x[0] && bar < x[1])) continue;
       const inFill = t.fills && (bar + 1) % 4 === 0 && sib >= 12;
       const swingOff = (s % 2 === 1) ? S.swing * stepDur : 0;
       const at = Math.max(0, s * stepDur + swingOff + jitter());
@@ -1907,8 +1937,10 @@ function tasteSummary() {
 }
 
 const STYLE_PRESET = { house:'House / EDM', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-Hop', dnb:'Drum & Bass',
-  rock:'Rock (ride', pop:'Pop / Rock', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi' };
-const STYLE_LABEL = { house:'House', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-hop', dnb:'Drum & Bass', rock:'Rock', pop:'Pop', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi' };
+  rock:'Rock (ride', pop:'Pop / Rock', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi',
+  hardtechno:'Hard Techno (rumble', rave:'Rave Techno', modernpop:'Modern Pop' };
+const STYLE_LABEL = { house:'House', techno:'Techno', bigroom:'Big Room', trap:'Trap', boombap:'Hip-hop', dnb:'Drum & Bass', rock:'Rock', pop:'Pop', disco:'Disco', reggaeton:'Reggaeton', afro:'Afro-Latin', lofi:'Lo-fi',
+  hardtechno:'Hard techno', rave:'Rave techno', modernpop:'Modern pop' };
 const chat = { pile: [], pileBubble: null, section: null, take: null, mood: null, genre: null, afterSing: null, pendingInstrument: null, recording: null, speak: false, started: false };
 const chatMsgs = $('#chatMsgs');
 const lastDrum = () => tracks.slice().reverse().find(t => t.type === 'drums');
@@ -3664,7 +3696,7 @@ function projectData() {
 function projectSnapshot() {           // the whole song as plain data (also used for Undo in the quick song maker)
   const data = { app:'melodize', version:2, name: ($('#projName').value || '').trim() || 'Untitled song', settings:{ bpm:S.bpm, bars:S.bars, keyRoot:S.keyRoot, scale:S.scale, grid:S.grid, swing:S.swing, humanize:S.humanize, preset:S.preset || 'balanced', room:S.room || 'hall' },
     tracks: tracks.map(t => {
-      const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, enterBar:t.enterBar || 0, repeat:!!t.repeat, ch:t.ch, sweep:!!t.sweep, isBand:!!t.isBand, role:t.role || null, styleId:t.styleId || null };
+      const base = { type:t.type, volume:t.volume, pan:t.pan, rev:t.rev, dly:t.dly, muted:t.muted, solo:t.solo, startBar:t.startBar || 0, endBar:t.endBar || 0, enterBar:t.enterBar || 0, rests:t.rests || null, build:t.build || null, repeat:!!t.repeat, ch:t.ch, sweep:!!t.sweep, isBand:!!t.isBand, role:t.role || null, styleId:t.styleId || null };
       return t.type === 'melody'
         ? Object.assign(base, { instKey:t.instKey, notes:t.notes, pump:t.pump, octave:t.octave })
         : t.type === 'audio' ? Object.assign(base, { sr:t.sr, wav:u8ToB64(new Uint8Array(DSP.encodeWav([t.data], t.sr))) })
@@ -3696,7 +3728,7 @@ async function loadProjectData(data) {
     else if (t.type === 'audio' && t.wav) { const w = DSP.decodeWav(b64ToBuf(t.wav)); await addAudioTrack(w.data, w.sr, t); }
     if (tracks.length === before) continue;            // skipped (unknown instrument): don't apply its settings to the previous track
     const nt = tracks[tracks.length - 1];
-    nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.enterBar = t.enterBar | 0; nt.repeat = !!t.repeat; if (t.ch) nt.ch = Object.assign({ low:0, mid:0, high:0, comp:0 }, t.ch); nt.sweep = !!t.sweep;
+    nt.startBar = t.startBar | 0; nt.endBar = t.endBar | 0; nt.enterBar = t.enterBar | 0; nt.rests = Array.isArray(t.rests) ? t.rests : undefined; nt.build = Array.isArray(t.build) ? t.build : undefined; nt.pump = !!t.pump; nt.repeat = !!t.repeat; if (t.ch) nt.ch = Object.assign({ low:0, mid:0, high:0, comp:0 }, t.ch); nt.sweep = !!t.sweep;
     nt.isBand = !!t.isBand; nt.role = t.role || undefined; if (t.styleId) nt.styleId = t.styleId; applyChannel(nt);
   }
   rebuildAllParts(); renderTracks(); updateLoop();
@@ -3785,8 +3817,14 @@ const FEELS = {
   solo:  { label: 'Just my tune', sub: 'instrument alone', band: null,        drums: null,      room: 'hall',  preset: 'warm',   mood: 'calm', rev: 0.3 },
   calm:  { label: 'Calm',         sub: 'soft & chill',     band: 'lofi',      drums: 'lofi',    room: 'plate', preset: 'warm',   mood: 'calm' },
   happy: { label: 'Happy',        sub: 'bright pop',       band: 'pop',       drums: 'pop',     room: 'plate', preset: 'bright', mood: 'happy' },
+  // today's pop: warm electric-piano chords, deep 808 bass, clean punchy drums; keeps your own speed so your real voice can sit on top
+  modernpop: { label: 'Modern pop', sub: 'warm & catchy',  band: 'modernpop', drums: 'modernpop', room: 'plate', preset: 'bright', mood: 'happy', lead: 'pluck' },
   sad:   { label: 'Sad',          sub: 'emotional',        band: 'cinematic', drums: null,      room: 'hall',  preset: 'warm',   mood: 'sad', harmony: 'piano' },
   party: { label: 'Party',        sub: 'dance beat',       band: 'house',     drums: 'house',   room: 'plate', preset: 'punchy', mood: 'energetic' },
+  // dark, euphoric rave techno (industrial techno with trance/rave melodies): ~145 BPM, hard kick, rave lead, acid bass, breakdown + drop
+  rave:  { label: 'Rave techno',  sub: 'hard & euphoric',  band: 'rave',      drums: 'rave',    room: 'hall',  preset: 'wide',   mood: 'epic', bpm: 145, lead: 'hoover', techno: true, pumpBass: true, rev: 0.32 },
+  // hard techno / schranz: ~150 BPM, distorted rumbling kick, rolling bass, your tune as a dark repeating stab
+  hardtechno: { label: 'Hard techno', sub: 'fast, rumbling kick', band: 'hardtechno', drums: 'hardtechno', room: 'plate', preset: 'punchy', mood: 'dark', bpm: 150, lead: 'industrial', techno: true, pumpBass: true, rev: 0.2 },
   epic:  { label: 'Epic',         sub: 'like a movie',     band: 'cinematic', drums: 'bigroom', room: 'hall',  preset: 'wide',   mood: 'epic' },
   rock:  { label: 'Rock',         sub: 'guitars & drums',  band: 'rock',      drums: 'rock',    room: 'room',  preset: 'punchy', mood: 'energetic' }
 };
@@ -3874,7 +3912,9 @@ async function qAnalyse(data, sr) {
   }
   const bpm = res.tempo && res.bpm ? Math.max(60, Math.min(180, res.bpm)) : 100, beat = 60 / bpm;
   const notes = res.notes.map(n => ({ midi: n.midi, startB: n.start / beat, durB: n.dur / beat, vel: n.vel }));
-  Q.take = { data, sr, bpm, secNotes: res.notes, key: res.key ? res.key.name : null, notes };
+  Q.take = { data, sr, bpm, secNotes: res.notes, key: res.key ? res.key.name : null, notes,
+    voice: data.slice(Math.min(data.length - 1, Math.round((res.leadSec || 0) * sr))) };   // your real voice, lined up with the first note
+  Q.speed = 1;
   // Nova (the chat) can work with the same tune
   chat.take = { secNotes: res.notes, key: Q.take.key, audioUrl: null, audio: data.slice(Math.min(data.length - 1, Math.round((res.leadSec || 0) * sr))), sr, beatNotes: notes.map(n => Object.assign({}, n)) };
   const last = res.notes[res.notes.length - 1], secs = Math.max(1, Math.round(last.start + last.dur - res.notes[0].start));
@@ -3961,6 +4001,16 @@ function qRenderFeels() {
 $('#qFeelText').addEventListener('keydown', e => {
   if (e.key !== 'Enter') return;
   const v = e.target.value.trim(); if (!v) return;
+  // style words (and a few artists people name) go straight to the matching feel
+  const lw = ' ' + v.toLowerCase() + ' ';
+  const kw = /schranz|hard ?techno|hardgroove|industrial|warehouse|nikolina|nicolina/.test(lw) ? 'hardtechno'
+    : /rave|trance|acid|techno|i hate models/.test(lw) ? 'rave'
+    : /[^a-z]pop[^a-z]|radio|catchy|chart|bieber|sabrina|chappell/.test(lw) ? 'modernpop' : null;
+  if (kw) {
+    Q.feel = kw; Q.recipe = null; Q.text = ''; e.target.value = ''; qRenderFeels(); qUpdate();
+    qSay('<div class="msg">Going with <b>' + FEELS[kw].label + '</b> — ' + FEELS[kw].sub + '.</div>');
+    if (Q.built) qBuild(); return;
+  }
   const r = DSP.sceneRecipe(v);
   if (!r) { qSay('<div class="msg">I didn\'t catch a feeling in that. Try words like dreamy, rainy, party, lonely, sunny, epic or romantic.</div>', true); return; }
   Q.recipe = r; Q.text = v; qRenderFeels(); qUpdate();
@@ -3968,8 +4018,37 @@ $('#qFeelText').addEventListener('keydown', e => {
 });
 
 /* --- build the whole song --- */
-function qArrange(lead, withBand) {
+/* speed: most styles follow the speed you hummed at; techno has its own speed (~150), so the tune is played
+   at normal or half speed, whichever keeps it closest to how you sang it. Faster/Slower is remembered in Q.speed. */
+function qFit(feel) {
+  const sung = Q.take.bpm, sp = Q.speed || 1, lim = b => Math.round(Math.max(60, Math.min(190, b)));
+  if (!feel.bpm) return { bpm: lim(sung * sp), f: 1 };
+  let f = 1, e = 1e9;
+  [0.5, 1, 2].forEach(x => { const err = Math.abs(Math.log(feel.bpm / x / sung)) + (x === 1 ? 0 : 0.03); if (err < e) { e = err; f = x; } });
+  return { bpm: lim(feel.bpm * sp), f };
+}
+/* techno song shape: groove intro (drums + bass) → your tune comes in → breakdown (drums and bass drop out, snare roll) → the drop */
+function qArrangeTechno(lead) {
+  const L = Math.max(1, clipBars(lead)), U = L <= 8 ? L * Math.ceil(8 / L) : L;
+  let sec = [U, 2 * U, U, 2 * U];
+  if (6 * U > 64) sec = [U, U, U, U];
+  if (4 * U > 64) return false;
+  const mainEnd = sec[0] + sec[1], brkEnd = mainEnd + sec[2], roll = Math.min(2, Math.max(1, Math.floor(sec[2] / 2)));
+  S.bars = brkEnd + sec[3];
+  tracks.forEach(t => {
+    t.endBar = 0; t.startBar = 0; t.enterBar = 0; t.rests = undefined; t.build = undefined;
+    if (t.type === 'drums') { t.fills = false; t.rests = [[mainEnd, brkEnd]]; t.build = [brkEnd - roll, brkEnd]; }
+    else if (t.type === 'melody') {
+      t.repeat = true;
+      t.rests = (t.role === 'bass' || BASSY.indexOf(t.instKey) !== -1) ? [[mainEnd, brkEnd]] : [[0, sec[0]]];
+    }
+  });
+  return true;
+}
+function qArrange(lead, withBand, feel) {
   const L = Math.max(1, clipBars(lead));
+  tracks.forEach(t => { t.rests = undefined; t.build = undefined; });
+  if (withBand && feel && feel.techno && qArrangeTechno(lead)) { $('#bars').value = S.bars; rebuildAllParts(); return; }
   if (!withBand) {                                  // just the tune: play it once, then loop
     S.bars = Math.min(64, L); tracks.forEach(t => { t.repeat = false; t.startBar = 0; t.endBar = 0; t.enterBar = 0; });
   } else {
@@ -3986,7 +4065,7 @@ function qArrange(lead, withBand) {
   rebuildAllParts();
 }
 // the choices that built the song now playing (the buttons may already show a newer choice when we save an undo step)
-function qState() { const c = Q.cur || { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text }; return { song: projectSnapshot(), inst: c.inst, feel: c.feel, recipe: c.recipe, text: c.text, bpm: Q.take ? Q.take.bpm : null, built: Q.built }; }
+function qState() { const c = Q.cur || { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text }; return { song: projectSnapshot(), inst: c.inst, feel: c.feel, recipe: c.recipe, text: c.text, speed: Q.speed || 1, fit: Q.fit || null, built: Q.built }; }
 function qPushUndo() {
   try { Q.undo.push(qState()); if (Q.undo.length > 25) Q.undo.shift(); Q.redo = []; } catch (e) { console.error(e); }
 }
@@ -4003,9 +4082,9 @@ async function qBuild() {
     if (tracks.length) qPushUndo();
     tracks.slice().forEach(t => removeTrack(t.id, true)); chat.jam = null;
     S.swing = 0; $('#swingSel').value = '0';
-    applyBpm(Q.take.bpm);
-    const feel = qFeel(), leadKey = qLeadKey(feel);
-    const lead = await addMelodyTrack(leadKey, Q.take.notes.map(n => Object.assign({}, n)), { octave: qOctave(leadKey) });
+    const feel = qFeel(), leadKey = qLeadKey(feel), fit = qFit(feel);
+    Q.fit = fit; applyBpm(fit.bpm);
+    const lead = await addMelodyTrack(leadKey, Q.take.notes.map(n => Object.assign({}, n, { startB: n.startB * fit.f, durB: n.durB * fit.f })), { octave: qOctave(leadKey) });
     if (feel.band) {
       await buildBand(feel.band, { src: lead, quiet: true, noDrums: true, harmony: feel.harmony });
       if (feel.drums) { const d = await makeBeat(feel.drums, { quiet: true }); if (d) d.isBand = true; }
@@ -4013,7 +4092,8 @@ async function qBuild() {
     autoMix();                                        // sensible levels, panning and low-cut for every part
     tracks.forEach(t => { if (t.isBand && t.role === 'chords') { t.volume *= 0.72; t.rev = Math.max(t.rev, 0.2); applyTrackFx(t); } });
     if (feel.rev) { lead.rev = feel.rev; lead.dly = 0.05; applyTrackFx(lead); }
-    qArrange(lead, !!feel.band);
+    if (feel.pumpBass) tracks.forEach(t => { if (t.role === 'bass') t.pump = true; });   // bass ducks on every kick, like in the clubs
+    qArrange(lead, !!feel.band, feel);
     applyPreset(feel.preset); await applyRoom(feel.room);
     applyMix(); renderTracks();
     Q.built = true; Q.leadKey = leadKey; Q.cur = { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text };
@@ -4030,12 +4110,17 @@ async function qBuild() {
   if (Q.again) qBuild();
 }
 function qResultInfo(feel, leadKey) {
-  const nm = t => ALL_INST[t.instKey].label.toLowerCase();
+  const FRIENDLY = { bell: 'electric piano', acid: 'acid', pad: 'synth pad', supersaw: 'synth', techstab: 'techno stab' };
+  const nm = t => FRIENDLY[t.instKey] || ALL_INST[t.instKey].label.toLowerCase();
   const parts = tracks.filter(t => t.isBand).map(t => t.type === 'drums' ? 'drums' : t.role === 'bass' ? (/bass/.test(nm(t)) ? nm(t).replace(/ ?bass$/, '') + ' bass line' : nm(t) + ' bass line').trim() : nm(t) + ' chords');
   $('#qResInfo').innerHTML = 'Your tune is playing on <b>' + ALL_INST[leadKey].label + '</b>' + (Q.inst === 'auto' ? ' (my pick for your tune)' : '') +
     (parts.length ? ', with ' + parts.join(', ').replace(/, ([^,]*)$/, ' and $1') + ' to match the <b>' + feel.label.toLowerCase().replace(/^“|”$/g, '') + '</b> feel.' : ', on its own with a soft hall echo.') +
-    (parts.length ? ' It starts with your tune, then the band joins in.' : '');
+    (!parts.length ? '' : feel.techno ? ' It starts with the beat, then your tune comes in, then a breakdown and a big drop.' : ' It starts with your tune, then the band joins in.') +
+    (Q.fit && Q.fit.f === 2 ? ' Your tune is played at half speed so it still sounds like you over the fast beat.' : '');
   $('#qBpm').textContent = S.bpm + ' beats per minute';
+  // your real voice can only sit on top when the song runs at the speed you sang
+  const vb = $('#qVoice'), ok = Q.take && Q.take.voice && Q.fit && Q.fit.f === 1 && Math.abs(S.bpm - Q.take.bpm) < 1 && !feel.techno;
+  vb.style.display = ok ? '' : 'none'; vb.disabled = tracks.some(t => t.type === 'audio'); vb.textContent = vb.disabled ? 'Your voice is in ✓' : 'Add my real voice';
 }
 function qUpdate() {
   const has = !!Q.take;
@@ -4058,7 +4143,7 @@ async function qRestore(snap) {
   await loadProjectData(snap.song);
   Q.inst = snap.inst; Q.feel = snap.feel; Q.recipe = snap.recipe; Q.text = snap.text || ''; Q.built = snap.built;
   Q.cur = { inst: Q.inst, feel: Q.feel, recipe: Q.recipe, text: Q.text };
-  if (Q.take && snap.bpm) Q.take.bpm = snap.bpm;
+  Q.speed = snap.speed || 1; Q.fit = snap.fit || null;
   $('#qFeelText').value = Q.text; qRenderInst(); qRenderFeels();
   const lead = qLead(); if (lead && Q.built) qResultInfo(qFeel(), lead.instKey);
   $('#qResult').style.display = Q.built && tracks.length ? 'block' : 'none';
@@ -4086,7 +4171,11 @@ async function qOct(d) {
 }
 async function qTempo(f) {
   await qIdle();
-  qEdit(() => { applyBpm(Math.round(S.bpm * f)); if (Q.take) Q.take.bpm = S.bpm; $('#qBpm').textContent = S.bpm + ' beats per minute'; });
+  qEdit(() => {
+    applyBpm(Math.round(S.bpm * f)); Q.speed = (Q.speed || 1) * f;     // remembered, so changing instrument or feel keeps your speed
+    $('#qBpm').textContent = S.bpm + ' beats per minute';
+    const vb = $('#qVoice'); if (vb) vb.style.display = 'none';          // a recorded voice can't change speed
+  });
   auditionPlay();
 }
 function auditionPlay() { Tone.start().then(() => { startPlayback(); startViz(); }); }
@@ -4094,6 +4183,17 @@ $('#qHigher').addEventListener('click', () => qQueue(() => qOct(1)));
 $('#qLower').addEventListener('click', () => qQueue(() => qOct(-1)));
 $('#qFaster').addEventListener('click', () => qQueue(() => qTempo(1.08)));
 $('#qSlower').addEventListener('click', () => qQueue(() => qTempo(1 / 1.08)));
+$('#qVoice').addEventListener('click', () => qQueue(async () => {
+  await qIdle();
+  if (!Q.take || !Q.take.voice || tracks.some(t => t.type === 'audio')) return;
+  qPushUndo(); stopPlayback();
+  const v = await addAudioTrack(Q.take.voice, Q.take.sr, { startBar: 0 });
+  v.volume = 0.95; v.rev = 0.2; v.dly = 0.04; applyTrackFx(v);
+  const lead = qLead(); if (lead) { lead.volume *= 0.5; }           // the instrument steps back so your voice leads
+  applyMix(); renderTracks();
+  const b = $('#qVoice'); b.disabled = true; b.textContent = 'Your voice is in ✓';
+  qUpdate(); startPlayback(); startViz();
+}));
 $('#qFix').addEventListener('click', () => { const lead = qLead(); if (!lead) return; qPushUndo(); qUpdate(); stopPlayback(); openRoll(lead); });
 $('#qWav').addEventListener('click', async () => {
   const b = $('#qWav'), txt = b.textContent; b.disabled = true; b.textContent = 'Preparing… (it plays through once)';

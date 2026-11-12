@@ -16,7 +16,7 @@ GitHub user: 776vvfyn45-commits (hosted on GitHub Pages, repo "melodize")
 ## Files
 - `index.html` (about 275 KB): the whole app (UI, tracks, instruments, mixer, recorder, piano roll, playlist, chat/Nova, taste profile). This is the file that goes live.
 - `dsp.js` (about 99 KB): the audio-analysis brain: pitch tracking (YIN), note segmentation, key and scale detection, tempo, quantizing, MIDI export, chords and auto-band, jam-partner phrases, scene-to-music, drum-hit detection, and the `transcribe` pipeline.
-- `sw.js`: service worker. The cache name is `melodize-vNN` (currently v27). Downloaded sounds (Tone.js, instrument samples, drum kits) live in a separate cache, `melodize-assets-v1`, which is kept across updates. Only bump that name if the sound files themselves must be refreshed.
+- `sw.js`: service worker. The cache name is `melodize-vNN` (currently v28). Downloaded sounds (Tone.js, instrument samples, drum kits) live in a separate cache, `melodize-assets-v1`, which is kept across updates. Only bump that name if the sound files themselves must be refreshed.
 - `manifest.json` and `icon-*.png`: install-to-home-screen settings and icons.
 - `Melodize.html`: an older standalone copy. Do not edit it or upload it.
 - `ai-worker.js` and `AI_SETUP.md`: the optional Cloudflare Worker for "Real AI mode". Setup steps are in `AI_SETUP.md`.
@@ -39,6 +39,14 @@ The first thing people see is a 3-step "Make a song from your voice" panel (`#qu
 "Make my song" builds lead + band + beat, auto-mixes, arranges an intro, and sets the master preset and reverb room for the feel. Changing any choice rebuilds right away. The finished song has Higher/Lower, Slower/Faster, Fix a wrong note (piano roll), Undo/Redo (whole-song snapshots via `projectSnapshot()`), Download .wav, and Save.
 The old full studio is still there, hidden behind "Show full studio" (`#studioWrap`; the choice is remembered in localStorage).
 Tracks can have `enterBar`: the part keeps its place in time but stays silent until that bar. Bass lines use it so they stay lined up with the chords during the intro.
+
+## Style feels: Modern pop, Rave techno, Hard techno (added Nov 2026)
+Based on research into current pop, I Hate Models (industrial/rave techno, about 136-156 BPM) and Nikolina (hard techno/schranz, about 140-160 BPM). The buttons use style names, never artist names. Typing an artist or style word in the "describe it" box (for example "i hate models", "schranz", "bieber") picks the matching feel.
+- New band styles in `dsp.js` `BAND_STYLES`: `hardtechno` (techstab `stab1` + rumble `roll` bass), `rave` (pad + acid `acid` bass), `modernpop` (bell `pop2` chords + sub `trap` bass).
+- New synth drum kit `hardtek`: distorted kick plus "rumble" (kick, then reverb, then a 150 Hz low-pass). New beats: "Hard Techno (rumble)", "Rave Techno", "Modern Pop".
+- Techno feels have a fixed tempo (`feel.bpm`). `qFit()` plays the hummed tune at normal or half speed, whichever is closer to how it was sung. Faster/Slower is stored in `Q.speed`.
+- Techno song shape (`qArrangeTechno`): beat intro, then the tune, then a breakdown with a snare roll (`t.build`), then the drop. Parts sit out sections through `t.rests` ([[fromBar,toBar]]).
+- "Add my real voice" puts the raw recording on top. It only shows when the song runs at the sung speed (not techno, no Faster/Slower).
 
 ## Tone.js guard (keep it)
 At the top of the main script, `Tone.PolySynth.prototype._scheduleEvent` is wrapped so a removed synth ignores late note events. Without it, removing a synth track while it plays jams Tone's timer queue: an error repeats about 16 times a second and later note-offs get stuck. Rebuilding songs (the quick maker, Nova's band) triggers this often.
