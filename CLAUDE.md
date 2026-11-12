@@ -16,7 +16,7 @@ GitHub user: 776vvfyn45-commits (hosted on GitHub Pages, repo "melodize")
 ## Files
 - `index.html` (about 275 KB): the whole app (UI, tracks, instruments, mixer, recorder, piano roll, playlist, chat/Nova, taste profile). This is the file that goes live.
 - `dsp.js` (about 99 KB): the audio-analysis brain: pitch tracking (YIN), note segmentation, key and scale detection, tempo, quantizing, MIDI export, chords and auto-band, jam-partner phrases, scene-to-music, drum-hit detection, and the `transcribe` pipeline.
-- `sw.js`: service worker. The cache name is `melodize-vNN` (currently v28). Downloaded sounds (Tone.js, instrument samples, drum kits) live in a separate cache, `melodize-assets-v1`, which is kept across updates. Only bump that name if the sound files themselves must be refreshed.
+- `sw.js`: service worker. The cache name is `melodize-vNN` (currently v29). Downloaded sounds (Tone.js, instrument samples, drum kits) live in a separate cache, `melodize-assets-v1`, which is kept across updates. Only bump that name if the sound files themselves must be refreshed.
 - `manifest.json` and `icon-*.png`: install-to-home-screen settings and icons.
 - `Melodize.html`: an older standalone copy. Do not edit it or upload it.
 - `ai-worker.js` and `AI_SETUP.md`: the optional Cloudflare Worker for "Real AI mode". Setup steps are in `AI_SETUP.md`.
@@ -59,6 +59,17 @@ This PC has no Node or Python. To test, serve the folder with a small PowerShell
 - **Stage 3: Editing power.** Quantize controls, undo, key and tempo changes, automation.
 - **Stage 4: Songwriting help, studio UI and project save.**
 - Verify each stage with tests and screenshots, then give the owner the upload list.
+
+## Humming accuracy (Nov 2026)
+The owner hums with her mouth closed ("mmm"). That is the hardest input: there are no consonants between notes, notes slide into each other, and repeated notes are only marked by a small loudness dip.
+- `_tests/humbench.js` is a realistic closed-mouth humming bench: 5 public-domain tunes x 4 voices, with glides, drift, timing jitter, soft repeats and tremolo. It scores exact notes, misses, extras and tempo. Run it in the browser with `HumBench.run(MelodizeDSP)`; it also works with Node.
+- Results: exact notes went from 54% to 95.6%, with 0 extra notes. Tempo is right in 19 of 20 runs (was 12 of 20). "Dum dum" singing stays at 100%.
+- The fixes in `dsp.js`:
+  1. `segmentNotes`: glide frames no longer block a note change. The pending window slides, and the note boundary is placed where the voice starts to move.
+  2. `splitRepeats` (end of `refineNotes`): splits a same-pitch note at a sharp V-shaped loudness dip (below 0.72 of the plateau). Regular tremolo dips are vetoed. Dips below 0.45 always split.
+  3. `estimateTempo`: the grid fit no longer depends on where the first note starts, and it also checks fit on the main beats (stops 1.5x-speed mistakes).
+- Known weak spot: with very strong tremolo (over about 20%), some soft repeated notes still merge. Merging was chosen over false splits on purpose.
+- Re-run the bench after any change to pitch tracking, segmentation or tempo.
 
 ## Known good practices
 - Test transcription on realistic "dum dum" style singing, not just clean tones. Accuracy was improved earlier this way.

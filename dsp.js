@@ -323,7 +323,7 @@ function segmentNotes(frames, hopSec, tuningOffset) {
     if (isNaN(frames[i].midi)) { i++; continue; }
     let j = i; while (j < frames.length && !isNaN(frames[j].midi)) j++;
     // run [i, j)
-    let cur = null, pending = [];
+    let cur = null, pending = [], depart = -1;
     const finalize = (n, endT) => {
       if (!n) return;
       n.end = endT;
@@ -335,24 +335,29 @@ function segmentNotes(frames, hopSec, tuningOffset) {
       if (!cur) { cur = newNote(k); continue; }
       const med = median(cur.vals.slice(-18));
       if (Math.abs(m - med) > 0.75) {
+        if (!pending.length) depart = k;                 // where the voice left the old note
         pending.push(k);
+        // sliding (legato humming) passes through in-between pitches: only the latest frames that agree with each other count,
+        // otherwise one glide frame would block the new note forever and every following note would be lost
+        while (pending.length > 1 && Math.abs((frames[pending[0]].midi - tuningOffset) - m) > 0.9) pending.shift();
         if (pending.length >= 3) {
           const pv = pending.map(p => frames[p].midi - tuningOffset);
           if (Math.max(...pv) - Math.min(...pv) < 0.9) {
-            finalize(cur, frames[pending[0]].t - hopSec / 2);
-            cur = newNote(pending[0]);
+            const cutT = frames[depart].t - hopSec / 2;  // the note change is heard where the slide begins
+            finalize(cur, cutT);
+            cur = newNote(pending[0]); cur.start = cutT;
             for (let q = 1; q < pending.length; q++) {
               cur.vals.push(frames[pending[q]].midi - tuningOffset); cur.rms.push(frames[pending[q]].rms);
               cur.end = frames[pending[q]].t + hopSec / 2; cur.peak = Math.max(cur.peak, frames[pending[q]].rms);
             }
-            pending = [];
+            pending = []; depart = -1;
           }
         }
         continue;
       }
       // back near the note's pitch: absorb any pending jitter frames
       for (const p of pending) { cur.vals.push(frames[p].midi - tuningOffset); cur.rms.push(frames[p].rms); }
-      pending = [];
+      pending = []; depart = -1;
       // re-articulation: energy dips then rises sharply at the same pitch ("ta ta ta")
       if (rf < cur.peak * 0.4) { cur.dip++; cur.dipMin = Math.min(cur.dipMin, rf); }
       else if (cur.dip >= 2 && rf > cur.dipMin * 1.8 && rf > cur.peak * 0.55 && (cur.end - cur.start) > 0.12) {
@@ -959,7 +964,50 @@ function refineNotes(segs, data, sr) {
     }
     final.push(n);
   }
-  return final;
+  return splitRepeats(final, env, dt);
+}
+/* 5) repeated notes in humming ("mm-mm" on the same pitch): there is no consonant, only a short dip in loudness.
+   Split a note where its (smoothed) loudness has a clear, short V-shaped dip with solid sound on both sides.
+   The slow, regular pulsing of a held note (tremolo) is shallower and is ignored. */
+const REPEAT_DIP = 0.72;
+function splitRepeats(notes, env, dt) {
+  const n = env.length, sm = new Float64Array(n), half = Math.max(1, Math.round(0.01 / dt));
+  for (let i = 0; i < n; i++) { let s = 0, c = 0; for (let q = Math.max(0, i - half); q <= Math.min(n - 1, i + half); q++) { s += env[q]; c++; } sm[i] = s / c; }
+  const at = t => Math.max(0, Math.min(n - 1, Math.round(t / dt)));
+  const side = Math.round(0.09 / dt), win = Math.round(0.2 / dt), loc = Math.round(0.05 / dt), gap = Math.round(0.025 / dt), sep = Math.round(0.14 / dt), rec = Math.round(0.045 / dt);
+  const out = [];
+  for (const note of notes) {
+    const a = at(note.start), b = at(note.start + note.dur), cuts = [], mins = [];
+    for (let i = a + side; i <= b - side; i++) {
+      let isMin = true;
+      for (let q = Math.max(a, i - loc); q <= Math.min(b, i + loc); q++) if (sm[q] < sm[i] || (sm[q] === sm[i] && q < i)) { isMin = false; break; }
+      if (!isMin) continue;
+      let L = 0, R = 0;
+      for (let q = Math.max(a, i - win); q <= i - gap; q++) if (sm[q] > L) L = sm[q];
+      for (let q = i + gap; q <= Math.min(b, i + win); q++) if (sm[q] > R) R = sm[q];
+      const plat = Math.min(L, R);
+      if (plat > 0 && sm[i] < 0.88 * plat) mins.push({ i, ratio: sm[i] / plat, depth: plat - sm[i] });
+    }
+    for (const m of mins) {
+      if (m.ratio >= REPEAT_DIP) continue;
+      const deep = m.ratio < 0.45;                          // tremolo never goes this deep: always a new note
+      // shape: a re-hummed note is (nearly) back ~45 ms either side; a tremolo wave is only about halfway back
+      const q1 = Math.max(a, m.i - rec), q2 = Math.min(b, m.i + rec);
+      const sharp = (sm[q1] - sm[m.i]) / m.depth >= 0.6 && (sm[q2] - sm[m.i]) / m.depth >= 0.6;
+      // tremolo repeats every ~0.13-0.3 s with dips of similar depth; a re-hummed note stands out deeper than its neighbours
+      const periodic = mins.some(o => o !== m && Math.abs(o.i - m.i) * dt >= 0.12 && Math.abs(o.i - m.i) * dt <= 0.3 && (1 - o.ratio) >= 0.75 * (1 - m.ratio));
+      if (!(deep || (sharp && !periodic))) continue;
+      if (!cuts.length || m.i - cuts[cuts.length - 1] >= sep) cuts.push(m.i);
+    }
+    if (!cuts.length) { out.push(note); continue; }
+    let s = note.start;
+    cuts.concat([null]).forEach(c => {
+      const e = c === null ? note.start + note.dur : c * dt;
+      out.push(Object.assign({}, note, { start: s, dur: e - s }));
+      s = e;
+    });
+  }
+  return out;
 }
 
 /* ---------- tempo from the way someone sang (onset times, seconds) ---------- */
@@ -969,9 +1017,11 @@ function estimateTempo(onsets) {
   let best = null, scores = [];
   for (let bpm = 60; bpm <= 180; bpm += 0.5) {
     const grid = 60 / bpm / 2;                          // eighth-note grid
-    let s = 0;
-    for (const t of ts) s += Math.cos(2 * Math.PI * t / grid);
-    s /= ts.length;
+    // how well the onsets sit on the grid, wherever the grid starts: a slightly early or late first note no longer throws it off
+    let cx = 0, cy = 0, qx = 0, qy = 0;
+    for (const t of ts) { cx += Math.cos(2 * Math.PI * t / grid); cy += Math.sin(2 * Math.PI * t / grid); qx += Math.cos(Math.PI * t / grid); qy += Math.sin(Math.PI * t / grid); }
+    // mostly the eighth-note fit, plus how well notes land on the main beats (stops 1.5x-speed mix-ups with dotted rhythms)
+    const s = 0.7 * Math.sqrt(cx * cx + cy * cy) / ts.length + 0.3 * Math.sqrt(qx * qx + qy * qy) / ts.length;
     const prior = Math.exp(-0.5 * Math.pow(Math.log2(bpm / 100) / 0.45, 2));
     const score = s * 0.8 + prior * 0.2;
     scores.push(s);

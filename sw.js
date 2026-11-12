@@ -5,7 +5,7 @@
 // - The app shell cache is renamed on every update; the sound cache (ASSET_CACHE) is kept,
 //   so an update never throws away instruments people already downloaded.
 
-const CACHE_NAME = 'melodize-v28';
+const CACHE_NAME = 'melodize-v29';
 const ASSET_CACHE = 'melodize-assets-v1';
 const APP_SHELL = [
   './',
